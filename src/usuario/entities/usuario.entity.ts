@@ -1,5 +1,6 @@
 import { Exclude } from 'class-transformer';
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Rol } from '../../roles/rol.entity.js';
 
 @Entity('usuarios')
 export class Usuario {
@@ -24,6 +25,8 @@ export class Usuario {
     
     @Column()
     rolId: number;
+
+    rol?: Rol;
     
     @Exclude()
     @Column({ type: 'varchar', length: 64, nullable: true })
