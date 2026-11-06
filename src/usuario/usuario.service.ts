@@ -28,7 +28,7 @@ export class UsuarioService {
     return usuario;
   }
 
-  async crear(dto: CreateUsuarioDto) {
+  async create(dto: CreateUsuarioDto) {
     try {
       await buscarActivo(this.roles, dto.rolId, 'Rol', false);
       await this.validarCorreo(dto.correo);
@@ -42,7 +42,7 @@ export class UsuarioService {
     }
   }
 
-  async listar() {
+  async findAll() {
     try {
       const lista = await this.usuarios.find({ order: { id: 'ASC' } });
       return await adjuntar(lista, 'rolId', this.roles, 'rol');
@@ -52,7 +52,7 @@ export class UsuarioService {
     }
   }
 
-  async buscar(id: number) {
+  async findOne(id: number) {
     try {
       const usuario = await buscarActivo(this.usuarios, id, 'Usuario', false);
       return await this.conRol(usuario);
@@ -62,14 +62,14 @@ export class UsuarioService {
     }
   }
 
-  async editar(id: number, dto: UpdateUsuarioDto) {
+  async update(id: number, dto: UpdateUsuarioDto) {
     try {
       await buscarActivo(this.usuarios, id, 'Usuario', false);
       if (dto.correo) await this.validarCorreo(dto.correo, id);
       const cambios = soloLoQueVino(dto);
       if (dto.contrasena) cambios.contrasena = await hash(dto.contrasena, 10);
       if (Object.keys(cambios).length > 0) await this.usuarios.update({ id }, cambios);
-      return await this.buscar(id);
+      return await this.findOne(id);
     }
     catch (error) {
       manejarError(error, 'Error al actualizar el usuario');

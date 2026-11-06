@@ -12,23 +12,23 @@ export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
 
   @Post()
-  crear(@Body() dto: CreateUsuarioDto) {
-    return this.usuarioService.crear(dto);
+  create(@Body() dto: CreateUsuarioDto) {
+    return this.usuarioService.create(dto);
   }
 
   @Get()
-  listar() {
-    return this.usuarioService.listar();
+  findAll() {
+    return this.usuarioService.findAll();
   }
 
   @Get(':id')
-  buscar(@Param('id', ParseIntPipe) id: number) {
-    return this.usuarioService.buscar(id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usuarioService.findOne(id);
   }
 
   @Patch(':id')
-  editar(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUsuarioDto) {
-    return this.usuarioService.editar(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUsuarioDto) {
+    return this.usuarioService.update(id, dto);
   }
 
   @Patch(':id/desactivar')
