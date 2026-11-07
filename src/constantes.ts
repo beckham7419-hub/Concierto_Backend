@@ -9,6 +9,13 @@ export const PASSWORD_MAX = 72;
 export const MAX_FILAS = 26;
 export const MAX_ASIENTOS_FILA = 50;
 
+export const PRECIO_MAX = 100000;
+
+export const ESTADO_CONCIERTO = {
+    PROGRAMADO: 'programado',
+    CANCELADO: 'cancelado',
+} as const;
+
 export const METODO_PAGO_INICIAL = 'Efectivo';
 
 export const ESTADOS_MX = [
