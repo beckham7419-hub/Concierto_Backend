@@ -7,6 +7,10 @@ import { RolesModule } from './roles/roles.module.js';
 import { UsuarioModule } from './usuario/usuario.module.js';
 import { SeedModule } from './seed/seed.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { EstadoModule } from './estado/estado.module.js';
+import { CiudadModule } from './ciudad/ciudad.module.js';
+import { GeneroModule } from './genero/genero.module.js';
+import { MetodoPagoModule } from './metodo-pago/metodo-pago.module.js';
 
 @Module({
   imports: [
@@ -25,6 +29,10 @@ import { AuthModule } from './auth/auth.module.js';
     UsuarioModule,
     SeedModule,
     AuthModule,
+    EstadoModule,
+    CiudadModule,
+    GeneroModule,
+    MetodoPagoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

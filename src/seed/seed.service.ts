@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { hash } from 'bcryptjs';
 import { isEmail } from 'class-validator';
 import { Repository } from 'typeorm';
-import { PASSWORD_MAX, PASSWORD_MIN, ROL } from '../constantes.js';
+import { ESTADOS_MX, METODO_PAGO_INICIAL, PASSWORD_MAX, PASSWORD_MIN, ROL } from '../constantes.js';
+import { Estado } from '../estado/entities/estado.entity.js';
+import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Rol } from '../roles/rol.entity.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
 
@@ -13,10 +15,14 @@ export class SeedService implements OnModuleInit {
     constructor(
         @InjectRepository(Rol) private readonly roles: Repository<Rol>,
         @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
+        @InjectRepository(Estado) private readonly estados: Repository<Estado>,
+        @InjectRepository(MetodoPago) private readonly metodosPago: Repository<MetodoPago>,
     ) {}
 
     async onModuleInit() {
         await this.crearRoles();
+        await this.crearMetodoPago();
+        await this.crearEstados();
         await this.crearPrimerAdmin();
     }
 
@@ -27,6 +33,24 @@ export class SeedService implements OnModuleInit {
                 this.logger.log(`Rol creado: ${nombre}`);
             }
         }
+    }
+
+    private async crearMetodoPago() {
+        if (!(await this.metodosPago.existsBy({ nombre: METODO_PAGO_INICIAL }))) {
+            await this.metodosPago.save(this.metodosPago.create({ nombre: METODO_PAGO_INICIAL }));
+            this.logger.log(`Metodo de pago creado: ${METODO_PAGO_INICIAL}`);
+        }
+    }
+
+    private async crearEstados() {
+        let creados = 0;
+        for (const nombre of ESTADOS_MX) {
+            if (!(await this.estados.existsBy({ nombre }))) {
+                await this.estados.save(this.estados.create({ nombre }));
+                creados++;
+            }
+        }
+        if (creados > 0) this.logger.log(`Estados creados: ${creados}`);
     }
 
     private async crearPrimerAdmin() {
