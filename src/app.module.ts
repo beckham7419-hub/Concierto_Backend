@@ -12,6 +12,8 @@ import { CiudadModule } from './ciudad/ciudad.module.js';
 import { GeneroModule } from './genero/genero.module.js';
 import { MetodoPagoModule } from './metodo-pago/metodo-pago.module.js';
 import { ArtistaModule } from './artista/artista.module.js';
+import { RecintoModule } from './recinto/recinto.module.js';
+import { ZonaModule } from './zona/zona.module.js';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { ArtistaModule } from './artista/artista.module.js';
     GeneroModule,
     MetodoPagoModule,
     ArtistaModule,
+    RecintoModule,
+    ZonaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

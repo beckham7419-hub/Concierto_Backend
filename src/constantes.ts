@@ -6,6 +6,9 @@ export const ROL = {
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 72;
 
+export const MAX_FILAS = 26;
+export const MAX_ASIENTOS_FILA = 50;
+
 export const METODO_PAGO_INICIAL = 'Efectivo';
 
 export const ESTADOS_MX = [
