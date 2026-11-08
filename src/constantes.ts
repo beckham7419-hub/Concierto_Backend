@@ -16,6 +16,22 @@ export const ESTADO_CONCIERTO = {
     CANCELADO: 'cancelado',
 } as const;
 
+export const ESTADO_TICKET = {
+    PENDIENTE: 'pendiente',
+    PAGADO: 'pagado',
+    CANCELADO: 'cancelado',
+    VENCIDO: 'vencido',
+} as const;
+
+export const MAX_ASIENTOS_TICKET = 8;
+export const MAX_TICKETS_PENDIENTES = 3;
+export const HORAS_LIMITE_PAGO = 48;
+
+export const LARGO_CLAVE = 8;
+export const ALFABETO_CLAVE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+export const OCUPADO = 1;
+
 export const METODO_PAGO_INICIAL = 'Efectivo';
 
 export const ESTADOS_MX = [

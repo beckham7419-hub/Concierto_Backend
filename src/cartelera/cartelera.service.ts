@@ -9,8 +9,10 @@ import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { ESTADO_CONCIERTO } from '../constantes.js';
+import { ESTADO_CONCIERTO, OCUPADO } from '../constantes.js';
+import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
+import { TicketService } from '../ticket/ticket.service.js';
 import { Zona } from '../zona/entities/zona.entity.js';
 import { FiltrosCarteleraDto } from './dto/filtros-cartelera.dto.js';
 
@@ -25,6 +27,8 @@ export class CarteleraService {
         @InjectRepository(Artista) private readonly artistas: Repository<Artista>,
         @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
         @InjectRepository(Asiento) private readonly asientos: Repository<Asiento>,
+        @InjectRepository(DetalleTicket) private readonly detalles: Repository<DetalleTicket>,
+        private readonly ticketService: TicketService,
     ) {}
 
     private async buscarEnCartelera(id: number) {
@@ -129,12 +133,15 @@ export class CarteleraService {
 
     async findAsientos(id: number, zonaId: number) {
         try {
+            await this.ticketService.vencerPendientes();
             await this.buscarEnCartelera(id);
             if (!(await this.conciertoZonas.existsBy({ conciertoId: id, zonaId }))) {
                 throw new NotFoundException('Zona no encontrado');
             }
             const lista = await this.asientos.find({ where: { zonaId }, order: { fila: 'ASC', numero: 'ASC' } });
-            return lista.map((asiento) => ({ ...asiento, ocupado: false }));
+            const tomados = await this.detalles.findBy({ conciertoId: id, ocupado: OCUPADO });
+            const ocupados = new Set(tomados.map((detalle) => detalle.asientoId));
+            return lista.map((asiento) => ({ ...asiento, ocupado: ocupados.has(asiento.id) }));
         }
         catch (error) {
             manejarError(error, 'Error al obtener los asientos de la zona');

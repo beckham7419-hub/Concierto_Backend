@@ -16,6 +16,7 @@ import { RecintoModule } from './recinto/recinto.module.js';
 import { ZonaModule } from './zona/zona.module.js';
 import { ConciertoModule } from './concierto/concierto.module.js';
 import { CarteleraModule } from './cartelera/cartelera.module.js';
+import { TicketModule } from './ticket/ticket.module.js';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { CarteleraModule } from './cartelera/cartelera.module.js';
     ZonaModule,
     ConciertoModule,
     CarteleraModule,
+    TicketModule,
   ],
   controllers: [AppController],
   providers: [AppService],

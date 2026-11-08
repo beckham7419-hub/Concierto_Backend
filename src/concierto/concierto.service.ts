@@ -1,13 +1,15 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, EntityManager, In, Not, Repository } from 'typeorm';
+import { Between, DataSource, EntityManager, In, MoreThan, Not, Repository } from 'typeorm';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
-import { ESTADO_CONCIERTO } from '../constantes.js';
+import { ESTADO_CONCIERTO, ESTADO_TICKET, OCUPADO } from '../constantes.js';
+import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
+import { Ticket } from '../ticket/entities/ticket.entity.js';
 import { Zona } from '../zona/entities/zona.entity.js';
 import { AsignarArtistasDto } from './dto/asignar-artistas.dto.js';
 import { AsignarPreciosDto } from './dto/asignar-precios.dto.js';
@@ -68,6 +70,13 @@ export class ConciertoService {
     const concierto = await manager.findOne(Concierto, { where: { id }, lock: { mode: 'pessimistic_write' } });
     if (!concierto) throw new NotFoundException('Concierto no encontrado');
     return concierto;
+  }
+
+  private tieneTicketsVivos(manager: EntityManager, conciertoId: number) {
+    return manager.existsBy(Ticket, [
+      { conciertoId, estado: ESTADO_TICKET.PAGADO },
+      { conciertoId, estado: ESTADO_TICKET.PENDIENTE, fechaLimite: MoreThan(new Date()) },
+    ]);
   }
 
   private async armar(concierto: Concierto) {
@@ -142,6 +151,9 @@ export class ConciertoService {
 
         if (cambiaFecha) this.validarFutura(fecha);
         if (cambiaFecha || cambiaRecinto) {
+          if (await this.tieneTicketsVivos(manager, id)) {
+            throw new ConflictException('Con tickets pendientes o pagados no se cambia el recinto ni la fecha');
+          }
           await this.bloquearRecinto(manager, recintoId);
           if (actual.estado === ESTADO_CONCIERTO.PROGRAMADO) await this.validarDia(manager, recintoId, fecha, id);
         }
@@ -164,8 +176,19 @@ export class ConciertoService {
 
   async cancelar(id: number) {
     try {
-      await buscarActivo(this.conciertos, id, 'Concierto', false);
-      await this.conciertos.update({ id }, { estado: ESTADO_CONCIERTO.CANCELADO });
+      await this.transaccion(async (manager) => {
+        await this.bloquearConcierto(manager, id);
+        if (await manager.existsBy(Ticket, { conciertoId: id, estado: ESTADO_TICKET.PAGADO })) {
+          throw new ConflictException('El concierto tiene tickets pagados, no se puede cancelar');
+        }
+        await manager.update(
+          Ticket,
+          { conciertoId: id, estado: ESTADO_TICKET.PENDIENTE },
+          { estado: ESTADO_TICKET.CANCELADO },
+        );
+        await manager.update(DetalleTicket, { conciertoId: id, ocupado: OCUPADO }, { ocupado: null });
+        await manager.update(Concierto, { id }, { estado: ESTADO_CONCIERTO.CANCELADO });
+      });
       return { ok: true };
     }
     catch (error) {
@@ -199,6 +222,12 @@ export class ConciertoService {
         if (zonas.length !== zonaIds.length) throw new NotFoundException('Zona no encontrado');
         if (zonas.some((z) => z.recintoId !== concierto.recintoId)) {
           throw new BadRequestException('La zona no es del recinto de este concierto');
+        }
+
+        const anteriores = await manager.findBy(ConciertoZona, { conciertoId: id });
+        const quitaZona = anteriores.some((anterior) => !zonaIds.includes(anterior.zonaId));
+        if (quitaZona && (await this.tieneTicketsVivos(manager, id))) {
+          throw new ConflictException('Con tickets pendientes o pagados no se quita una zona');
         }
 
         await manager.delete(ConciertoZona, { conciertoId: id });
