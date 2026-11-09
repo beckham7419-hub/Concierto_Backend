@@ -19,6 +19,7 @@ import { CarteleraModule } from './cartelera/cartelera.module.js';
 import { TicketModule } from './ticket/ticket.module.js';
 import { PagoModule } from './pago/pago.module.js';
 import { ImagenModule } from './imagen/imagen.module.js';
+import { ReporteModule } from './reporte/reporte.module.js';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { ImagenModule } from './imagen/imagen.module.js';
     TicketModule,
     PagoModule,
     ImagenModule,
+    ReporteModule,
   ],
   controllers: [AppController],
   providers: [AppService],
