@@ -28,4 +28,7 @@ export class Concierto {
 
     @Column({ type: 'enum', enum: Object.values(ESTADO_CONCIERTO), default: ESTADO_CONCIERTO.PROGRAMADO })
     estado: string;
+
+    @Column({ type: 'int', nullable: true })
+    imagenId: number | null;
 }

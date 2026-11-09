@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { FechaConHora, limpiar, Opcional } from '../../common/dto-ayudas.js';
+import { ID_MAX } from '../../constantes.js';
 
 export class UpdateConciertoDto {
     @Opcional()
@@ -24,4 +25,10 @@ export class UpdateConciertoDto {
     @IsInt()
     @Min(1)
     recintoId?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    @Max(ID_MAX)
+    imagenId?: number | null;
 }

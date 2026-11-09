@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, EntityManager, In, MoreThan, Not, Repository } from 'typeorm';
 import { Artista } from '../artista/entities/artista.entity.js';
-import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
+import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
@@ -110,6 +110,7 @@ export class ConciertoService {
         await this.bloquearRecinto(manager, dto.recintoId);
         await this.validarDia(manager, dto.recintoId, fecha);
         const concierto = await manager.save(manager.create(Concierto, { ...dto, fecha }));
+        if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
         return concierto.id;
       });
       return await this.findOne(id);
@@ -162,10 +163,12 @@ export class ConciertoService {
           nombre: dto.nombre,
           descripcion: dto.descripcion,
           recintoId: dto.recintoId,
+          imagenId: dto.imagenId,
         });
         if (cambiaFecha) cambios.fecha = fecha;
         if (Object.keys(cambios).length > 0) await manager.update(Concierto, { id }, cambios);
         if (cambiaRecinto) await manager.delete(ConciertoZona, { conciertoId: id });
+        if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
       });
       return await this.findOne(id);
     }

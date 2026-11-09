@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, MaxLength, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { limpiar } from '../../common/dto-ayudas.js';
+import { ID_MAX } from '../../constantes.js';
 
 export class CreateRecintoDto {
     @Transform(limpiar)
@@ -18,4 +19,10 @@ export class CreateRecintoDto {
     @IsInt()
     @Min(1)
     ciudadId: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    @Max(ID_MAX)
+    imagenId?: number | null;
 }

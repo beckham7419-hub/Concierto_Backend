@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
+import { Imagen } from '../imagen/entities/imagen.entity.js';
 
 export async function buscarActivo<T extends { id: number }>(
     repo: Repository<T>,
@@ -21,6 +22,11 @@ export async function adjuntar(lista: any[], campoId: string, repo: Repository<a
     const porId = new Map(padres.map((p: any) => [p.id, p]));
     for (const x of lista) x[destino] = porId.get(x[campoId]) ?? null;
     return lista;
+}
+
+export async function bloquearImagen(manager: EntityManager, id: number) {
+    const imagen = await manager.findOne(Imagen, { where: { id }, lock: { mode: 'pessimistic_read' } });
+    if (!imagen) throw new NotFoundException('Imagen no encontrado');
 }
 
 export function soloLoQueVino<T extends object>(dto: T): Partial<T> {

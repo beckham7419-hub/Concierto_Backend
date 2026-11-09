@@ -33,6 +33,12 @@ export const ALFABETO_CLAVE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export const OCUPADO = 1;
 
+export const ID_MAX = 2147483647;
+
+export const IMAGEN_MAX_BYTES = 2 * 1024 * 1024;
+export const IMAGEN_TIPOS = /^image\/(jpeg|png|webp)$/;
+export const IMAGEN_NOMBRE_MAX = 255;
+
 export const METODO_PAGO_INICIAL = 'Efectivo';
 
 export const ESTADOS_MX = [

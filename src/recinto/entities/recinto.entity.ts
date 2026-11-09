@@ -20,4 +20,7 @@ export class Recinto {
 
     @Column({ type: 'boolean', default: true })
     activo: boolean;
+
+    @Column({ type: 'int', nullable: true })
+    imagenId: number | null;
 }

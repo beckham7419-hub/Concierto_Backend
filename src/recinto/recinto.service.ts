@@ -1,8 +1,8 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, MoreThan, Not, Repository } from 'typeorm';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
-import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
+import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
 import { ESTADO_CONCIERTO } from '../constantes.js';
@@ -18,7 +18,12 @@ export class RecintoService {
     @InjectRepository(Ciudad) private readonly ciudades: Repository<Ciudad>,
     @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
     @InjectRepository(Concierto) private readonly conciertos: Repository<Concierto>,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private transaccion<T>(trabajo: (manager: EntityManager) => Promise<T>) {
+    return this.dataSource.transaction('READ COMMITTED', trabajo);
+  }
 
   private async validarNombre(nombre: string, ciudadId: number, idPropio?: number) {
     const donde = idPropio ? { nombre, ciudadId, id: Not(idPropio) } : { nombre, ciudadId };
@@ -36,8 +41,12 @@ export class RecintoService {
     try {
       await buscarActivo(this.ciudades, dto.ciudadId, 'Ciudad');
       await this.validarNombre(dto.nombre, dto.ciudadId);
-      const recinto = await this.recintos.save(this.recintos.create(dto));
-      return await this.findOne(recinto.id);
+      const id = await this.transaccion(async (manager) => {
+        const recinto = await manager.save(manager.create(Recinto, dto));
+        if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
+        return recinto.id;
+      });
+      return await this.findOne(id);
     }
     catch (error) {
       manejarError(error, 'Error al crear el recinto');
@@ -81,7 +90,10 @@ export class RecintoService {
       if (dto.ciudadId !== undefined) await buscarActivo(this.ciudades, dto.ciudadId, 'Ciudad');
       await this.validarNombre(dto.nombre ?? actual.nombre, dto.ciudadId ?? actual.ciudadId, id);
       const cambios = soloLoQueVino(dto);
-      if (Object.keys(cambios).length > 0) await this.recintos.update({ id }, cambios);
+      await this.transaccion(async (manager) => {
+        if (Object.keys(cambios).length > 0) await manager.update(Recinto, { id }, cambios);
+        if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
+      });
       return await this.findOne(id);
     }
     catch (error) {
