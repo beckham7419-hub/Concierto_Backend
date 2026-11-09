@@ -31,4 +31,6 @@ export class Ticket {
     creadoEn: Date;
 
     asientos?: { asientoId: number; zonaId: number; zona: string; fila: string; numero: number; precio: string }[];
+
+    usuario?: { id: number; nombre: string; apellido: string };
 }

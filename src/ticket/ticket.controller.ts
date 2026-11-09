@@ -21,6 +21,12 @@ export class TicketController {
         return this.ticketService.misTickets(req.usuario);
     }
 
+    @Roles(ROL.ADMIN)
+    @Get('clave/:clave')
+    buscarPorClave(@Param('clave') clave: string) {
+        return this.ticketService.buscarPorClave(clave);
+    }
+
     @Roles(ROL.ADMIN, ROL.CLIENTE)
     @Patch(':id/cancelar')
     cancelar(@Req() req: { usuario: Usuario }, @Param('id', ParseIntPipe) id: number) {

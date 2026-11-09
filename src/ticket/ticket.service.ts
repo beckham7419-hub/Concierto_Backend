@@ -35,6 +35,7 @@ export class TicketService {
         @InjectRepository(Ciudad) private readonly ciudades: Repository<Ciudad>,
         @InjectRepository(Asiento) private readonly asientos: Repository<Asiento>,
         @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
+        @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
         private readonly dataSource: DataSource,
     ) {}
 
@@ -225,6 +226,21 @@ export class TicketService {
         }
         catch (error) {
             manejarError(error, 'Error al obtener tus tickets');
+        }
+    }
+
+    async buscarPorClave(clave: string) {
+        try {
+            await this.vencerPendientes();
+            const ticket = await this.tickets.findOneBy({ clave: clave.trim().toUpperCase() });
+            if (!ticket) throw new NotFoundException('Ticket no encontrado');
+            await this.armar([ticket]);
+            const cliente = await this.usuarios.findOneBy({ id: ticket.usuarioId });
+            ticket.usuario = cliente ? { id: cliente.id, nombre: cliente.nombre, apellido: cliente.apellido } : undefined;
+            return ticket;
+        }
+        catch (error) {
+            manejarError(error, 'Error al buscar el ticket');
         }
     }
 

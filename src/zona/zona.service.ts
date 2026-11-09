@@ -2,7 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Not, Repository } from 'typeorm';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
-import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
+import { buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { CreateZonaDto } from './dto/create-zona.dto.js';

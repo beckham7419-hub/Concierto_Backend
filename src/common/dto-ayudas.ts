@@ -8,6 +8,9 @@ export const limpiar = ({ value }: TransformFnParams) =>
 export const minusculas = ({ value }: TransformFnParams) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value;
 
+export const mayusculas = ({ value }: TransformFnParams) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value;
+
 export const Opcional = () => ValidateIf((_objeto, valor) => valor !== undefined);
 
 export const FechaConHora = () =>

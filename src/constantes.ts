@@ -10,6 +10,7 @@ export const MAX_FILAS = 26;
 export const MAX_ASIENTOS_FILA = 50;
 
 export const PRECIO_MAX = 100000;
+export const MONTO_RECIBIDO_MAX = 1000000;
 
 export const ESTADO_CONCIERTO = {
     PROGRAMADO: 'programado',
