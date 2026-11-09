@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, MoreThan, Not, Repository } from 'typeorm';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
@@ -17,7 +17,6 @@ export class RecintoService {
     @InjectRepository(Recinto) private readonly recintos: Repository<Recinto>,
     @InjectRepository(Ciudad) private readonly ciudades: Repository<Ciudad>,
     @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
-    @InjectRepository(Concierto) private readonly conciertos: Repository<Concierto>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -103,14 +102,17 @@ export class RecintoService {
 
   async desactivar(id: number) {
     try {
-      await buscarActivo(this.recintos, id, 'Recinto', false);
-      const hayConciertos = await this.conciertos.existsBy({
-        recintoId: id,
-        estado: ESTADO_CONCIERTO.PROGRAMADO,
-        fecha: MoreThan(new Date()),
+      await this.transaccion(async (manager) => {
+        const recinto = await manager.findOne(Recinto, { where: { id }, lock: { mode: 'pessimistic_write' } });
+        if (!recinto) throw new NotFoundException('Recinto no encontrado');
+        const hayConciertos = await manager.existsBy(Concierto, {
+          recintoId: id,
+          estado: ESTADO_CONCIERTO.PROGRAMADO,
+          fecha: MoreThan(new Date()),
+        });
+        if (hayConciertos) throw new ConflictException('El recinto tiene conciertos programados');
+        await manager.update(Recinto, { id }, { activo: false });
       });
-      if (hayConciertos) throw new ConflictException('El recinto tiene conciertos programados');
-      await this.recintos.update({ id }, { activo: false });
       return { ok: true };
     }
     catch (error) {
