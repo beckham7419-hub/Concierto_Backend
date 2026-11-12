@@ -254,4 +254,24 @@ export class TicketService {
             manejarError(error, 'Error al cancelar el ticket');
         }
     }
+
+    async usar(usuario: Usuario, id: number) {
+        try {
+            await this.vencerPendientes();
+            const ticket = await buscarActivo(this.tickets, id, 'Ticket', false);
+            const cambio = await this.tickets.update(
+                { id: ticket.id, estado: ESTADO_TICKET.PAGADO },
+                { estado: ESTADO_TICKET.USADO, usadoEn: new Date(), usadoPorId: usuario.id },
+            );
+            if (cambio.affected !== 1) {
+                const actual = await this.tickets.findOneBy({ id: ticket.id });
+                if (actual?.estado === ESTADO_TICKET.USADO) throw new ConflictException('El ticket ya fue usado');
+                throw new ConflictException(`El ticket esta ${actual?.estado ?? ticket.estado}`);
+            }
+            return await this.buscarPorClave(ticket.clave);
+        }
+        catch (error) {
+            manejarError(error, 'Error al dar entrada al ticket');
+        }
+    }
 }

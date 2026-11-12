@@ -32,4 +32,10 @@ export class TicketController {
     cancelar(@Req() req: { usuario: Usuario }, @Param('id', ParseIntPipe) id: number) {
         return this.ticketService.cancelar(req.usuario, id);
     }
+
+    @Roles(ROL.ADMIN)
+    @Patch(':id/usar')
+    usar(@Req() req: { usuario: Usuario }, @Param('id', ParseIntPipe) id: number) {
+        return this.ticketService.usar(req.usuario, id);
+    }
 }

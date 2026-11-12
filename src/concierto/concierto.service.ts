@@ -75,6 +75,7 @@ export class ConciertoService {
   private tieneTicketsVivos(manager: EntityManager, conciertoId: number) {
     return manager.existsBy(Ticket, [
       { conciertoId, estado: ESTADO_TICKET.PAGADO },
+      { conciertoId, estado: ESTADO_TICKET.USADO },
       { conciertoId, estado: ESTADO_TICKET.PENDIENTE, fechaLimite: MoreThan(new Date()) },
     ]);
   }
@@ -181,9 +182,11 @@ export class ConciertoService {
     try {
       await this.transaccion(async (manager) => {
         await this.bloquearConcierto(manager, id);
-        if (await manager.existsBy(Ticket, { conciertoId: id, estado: ESTADO_TICKET.PAGADO })) {
-          throw new ConflictException('El concierto tiene tickets pagados, no se puede cancelar');
-        }
+        const hayPagados = await manager.existsBy(Ticket, [
+          { conciertoId: id, estado: ESTADO_TICKET.PAGADO },
+          { conciertoId: id, estado: ESTADO_TICKET.USADO },
+        ]);
+        if (hayPagados) throw new ConflictException('El concierto tiene tickets pagados, no se puede cancelar');
         await manager.update(
           Ticket,
           { conciertoId: id, estado: ESTADO_TICKET.PENDIENTE },

@@ -22,6 +22,7 @@ export const ESTADO_TICKET = {
     PAGADO: 'pagado',
     CANCELADO: 'cancelado',
     VENCIDO: 'vencido',
+    USADO: 'usado',
 } as const;
 
 export const MAX_ASIENTOS_TICKET = 8;

@@ -30,6 +30,12 @@ export class Ticket {
     @CreateDateColumn()
     creadoEn: Date;
 
+    @Column({ type: 'datetime', nullable: true })
+    usadoEn: Date | null;
+
+    @Column({ type: 'int', nullable: true })
+    usadoPorId: number | null;
+
     asientos?: { asientoId: number; zonaId: number; zona: string; fila: string; numero: number; precio: string }[];
 
     usuario?: { id: number; nombre: string; apellido: string };
