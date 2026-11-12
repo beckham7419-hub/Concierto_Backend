@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { Artista } from '../artista/entities/artista.entity.js';
 import { buscarActivo } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
@@ -77,7 +78,8 @@ export class ImagenService {
                 const imagen = await manager.findOne(Imagen, { where: { id }, lock: { mode: 'pessimistic_write' } });
                 if (!imagen) throw new NotFoundException('Imagen no encontrado');
                 const enUso = (await manager.existsBy(Recinto, { imagenId: id }))
-                    || (await manager.existsBy(Concierto, { imagenId: id }));
+                    || (await manager.existsBy(Concierto, { imagenId: id }))
+                    || (await manager.existsBy(Artista, { imagenId: id }));
                 if (enUso) throw new ConflictException('La imagen esta en uso, no se puede quitar');
                 await manager.delete(Imagen, { id });
             });

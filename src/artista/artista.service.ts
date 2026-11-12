@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
-import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
+import { DataSource, EntityManager, Not, Repository } from 'typeorm';
+import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { Genero } from '../genero/entities/genero.entity.js';
 import { CreateArtistaDto } from './dto/create-artista.dto.js';
@@ -13,7 +13,12 @@ export class ArtistaService {
   constructor(
     @InjectRepository(Artista) private readonly artistas: Repository<Artista>,
     @InjectRepository(Genero) private readonly generos: Repository<Genero>,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private transaccion<T>(trabajo: (manager: EntityManager) => Promise<T>) {
+    return this.dataSource.transaction('READ COMMITTED', trabajo);
+  }
 
   private async validarNombre(nombre: string, idPropio?: number) {
     const donde = idPropio ? { nombre, id: Not(idPropio) } : { nombre };
@@ -31,8 +36,12 @@ export class ArtistaService {
     try {
       await buscarActivo(this.generos, dto.generoId, 'Genero');
       await this.validarNombre(dto.nombre);
-      const artista = await this.artistas.save(this.artistas.create(dto));
-      return await this.findOne(artista.id);
+      const id = await this.transaccion(async (manager) => {
+        const artista = await manager.save(manager.create(Artista, dto));
+        if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
+        return artista.id;
+      });
+      return await this.findOne(id);
     }
     catch (error) {
       manejarError(error, 'Error al crear el artista');
@@ -65,7 +74,10 @@ export class ArtistaService {
       if (dto.generoId !== undefined) await buscarActivo(this.generos, dto.generoId, 'Genero');
       if (dto.nombre) await this.validarNombre(dto.nombre, id);
       const cambios = soloLoQueVino(dto);
-      if (Object.keys(cambios).length > 0) await this.artistas.update({ id }, cambios);
+      await this.transaccion(async (manager) => {
+        if (Object.keys(cambios).length > 0) await manager.update(Artista, { id }, cambios);
+        if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
+      });
       return await this.findOne(id);
     }
     catch (error) {
