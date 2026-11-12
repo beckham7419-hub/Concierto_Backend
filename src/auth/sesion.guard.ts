@@ -28,7 +28,8 @@ export class SesionGuard implements CanActivate {
         let datos: any;
         try {
             datos = await this.jwt.verifyAsync(token);
-        } catch {
+        }
+        catch {
             throw new UnauthorizedException('Token invalido');
         }
         if (!datos.sub || !datos.sid) throw new UnauthorizedException('Token invalido');

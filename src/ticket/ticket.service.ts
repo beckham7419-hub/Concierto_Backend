@@ -8,16 +8,7 @@ import { adjuntar, buscarActivo } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import {
-    ALFABETO_CLAVE,
-    ESTADO_CONCIERTO,
-    ESTADO_TICKET,
-    HORAS_LIMITE_PAGO,
-    LARGO_CLAVE,
-    MAX_TICKETS_PENDIENTES,
-    OCUPADO,
-    ROL,
-} from '../constantes.js';
+import { ALFABETO_CLAVE, ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_LIMITE_PAGO, LARGO_CLAVE, MAX_TICKETS_PENDIENTES, OCUPADO, ROL } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
