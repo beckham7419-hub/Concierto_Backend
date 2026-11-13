@@ -73,13 +73,21 @@ export class TicketService {
         return elegidos;
     }
 
+    private async validarDiaDelConcierto(conciertoId: number) {
+        const concierto = await this.conciertos.findOneBy({ id: conciertoId });
+        if (!concierto) throw new NotFoundException('Concierto no encontrado');
+        const ahora = new Date();
+        if (concierto.fecha.toDateString() === ahora.toDateString()) return;
+        throw new ConflictException(concierto.fecha.getTime() > ahora.getTime() ? 'Aun no es el dia del concierto' : 'El concierto ya paso');
+    }
+
     private calcularTotal(elegidos: { precio: string }[]) {
-      const centavos = elegidos.reduce((suma, e) => suma + Math.round(Number(e.precio) * 100), 0);
+        const centavos = elegidos.reduce((suma, e) => suma + Math.round(Number(e.precio) * 100), 0);
         return (centavos / 100).toFixed(2);
     }
 
     private calcularLimite(concierto: Concierto) {
-      const limite = new Date(Date.now() + HORAS_LIMITE_PAGO * 60 * 60 * 1000);
+        const limite = new Date(Date.now() + HORAS_LIMITE_PAGO * 60 * 60 * 1000);
         limite.setMilliseconds(0);
         return limite.getTime() < concierto.fecha.getTime() ? limite : concierto.fecha;
     }
@@ -188,7 +196,7 @@ export class TicketService {
                 const concierto = await this.bloquearConcierto(manager, dto.conciertoId);
                 await this.validarCupo(manager, usuario.id);
                 const elegidos = await this.validarAsientos(manager, concierto.id, dto.asientoIds);
-                
+
                 const ticket = await manager.save(
                     manager.create(Ticket, {
                         clave: await this.claveNueva(manager),
@@ -259,6 +267,7 @@ export class TicketService {
         try {
             await this.vencerPendientes();
             const ticket = await buscarActivo(this.tickets, id, 'Ticket', false);
+            if (ticket.estado === ESTADO_TICKET.PAGADO) await this.validarDiaDelConcierto(ticket.conciertoId);
             const cambio = await this.tickets.update(
                 { id: ticket.id, estado: ESTADO_TICKET.PAGADO },
                 { estado: ESTADO_TICKET.USADO, usadoEn: new Date(), usadoPorId: usuario.id },

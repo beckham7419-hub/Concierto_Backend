@@ -2,8 +2,13 @@ import { applyDecorators } from '@nestjs/common';
 import { TransformFnParams } from 'class-transformer';
 import { buildMessage, IsISO8601, Matches, ValidateBy, ValidateIf, ValidationOptions } from 'class-validator';
 
-export const limpiar = ({ value }: TransformFnParams) =>
-    typeof value === 'string' ? value.trim() : value;
+const SE_VE = /(?![\u115F\u1160\u2800\u3164\uFFA0])[\p{L}\p{N}\p{P}\p{S}]/u;
+
+export const limpiar = ({ value }: TransformFnParams) => {
+    if (typeof value !== 'string') return value;
+    const texto = value.trim();
+    return SE_VE.test(texto) ? texto : '';
+};
 
 export const minusculas = ({ value }: TransformFnParams) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value;
