@@ -18,6 +18,7 @@ import { ConciertoModule } from './concierto/concierto.module.js';
 import { CarteleraModule } from './cartelera/cartelera.module.js';
 import { TicketModule } from './ticket/ticket.module.js';
 import { PagoModule } from './pago/pago.module.js';
+import { PagoEnLineaModule } from './pago-en-linea/pago-en-linea.module.js';
 import { ImagenModule } from './imagen/imagen.module.js';
 import { ReporteModule } from './reporte/reporte.module.js';
 
@@ -49,6 +50,7 @@ import { ReporteModule } from './reporte/reporte.module.js';
     CarteleraModule,
     TicketModule,
     PagoModule,
+    PagoEnLineaModule,
     ImagenModule,
     ReporteModule,
   ],

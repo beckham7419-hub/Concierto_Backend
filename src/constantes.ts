@@ -44,6 +44,21 @@ export const IMAGEN_NOMBRE_MAX = 255;
 
 export const METODO_PAGO_INICIAL = 'Efectivo';
 
+export const METODO_PAGO_TARJETA = 'Tarjeta';
+
+export const STRIPE_LLAVE_PRUEBA = 'sk_test_';
+export const STRIPE_SESION_PATRON = /^cs_test_[A-Za-z0-9_]+$/;
+export const STRIPE_MONEDA = 'mxn';
+export const STRIPE_MONTO_MINIMO = 10;
+export const STRIPE_MINUTOS_SESION = 60;
+export const STRIPE_MINUTOS_MINIMOS = 35;
+export const STRIPE_MINUTOS_HOLGURA = 2;
+export const STRIPE_TIMEOUT_MS = 15000;
+export const STRIPE_REINTENTOS = 1;
+
+export const RUTA_FRONT_PAGO_EXITO = '/pago/exito';
+export const RUTA_FRONT_TICKETS = '/mis-tickets';
+
 export const ESTADOS_MX = [
     'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas', 'Chihuahua',
     'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Estado de México', 'Guanajuato', 'Guerrero',

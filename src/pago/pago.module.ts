@@ -11,5 +11,6 @@ import { PagoService } from './pago.service.js';
   imports: [TypeOrmModule.forFeature([Pago, Ticket, MetodoPago]), TicketModule],
   controllers: [PagoController],
   providers: [PagoService],
+  exports: [PagoService],
 })
 export class PagoModule {}
