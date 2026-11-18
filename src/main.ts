@@ -12,7 +12,11 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new BdFilter());
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
-  app.enableCors({ origin: process.env.FRONT_URL });
+  const origenes = (process.env.FRONT_URL ?? '')
+    .split(',')
+    .map((origen) => origen.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  app.enableCors({ origin: origenes.length > 0 ? origenes : undefined });
   await app.listen(process.env.PORT ?? 3000);
 }
 await bootstrap();

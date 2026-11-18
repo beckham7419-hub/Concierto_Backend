@@ -55,6 +55,9 @@ export const STRIPE_MINUTOS_MINIMOS = 35;
 export const STRIPE_MINUTOS_HOLGURA = 2;
 export const STRIPE_TIMEOUT_MS = 15000;
 export const STRIPE_REINTENTOS = 1;
+export const STRIPE_MINUTOS_REUSO = 5;
+export const STRIPE_SESIONES_REVISADAS = 500;
+export const STRIPE_REVISION_TIMEOUT_MS = 5000;
 
 export const RUTA_FRONT_PAGO_EXITO = '/pago/exito';
 export const RUTA_FRONT_TICKETS = '/mis-tickets';

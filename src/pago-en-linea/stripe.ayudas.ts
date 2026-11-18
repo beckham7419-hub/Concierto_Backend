@@ -12,7 +12,7 @@ export function esLlaveDePrueba(llave: string | undefined) {
 }
 
 export function urlsDeRetorno(frontUrl: string | undefined) {
-    const base = frontUrl?.trim().replace(/\/+$/, '');
+    const base = frontUrl?.split(',')[0]?.trim().replace(/\/+$/, '');
     if (!base) return null;
     return {
         exito: `${base}${RUTA_FRONT_PAGO_EXITO}?session_id={CHECKOUT_SESSION_ID}`,

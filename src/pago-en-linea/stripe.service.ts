@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import Stripe from 'stripe';
-import { STRIPE_MONEDA, STRIPE_REINTENTOS, STRIPE_TIMEOUT_MS } from '../constantes.js';
+import { STRIPE_MONEDA, STRIPE_REINTENTOS, STRIPE_REVISION_TIMEOUT_MS, STRIPE_SESIONES_REVISADAS, STRIPE_TIMEOUT_MS } from '../constantes.js';
 import { esLlaveDePrueba } from './stripe.ayudas.js';
 
 export interface DatosCheckout {
@@ -12,6 +12,19 @@ export interface DatosCheckout {
     expiraEn: number;
     exitoUrl: string;
     cancelUrl: string;
+}
+
+const REVISION = { timeout: STRIPE_REVISION_TIMEOUT_MS, maxNetworkRetries: 0 };
+
+export interface SesionDeTicket {
+    id: string;
+    abierta: boolean;
+    pagada: boolean;
+    centavos: number | null;
+    moneda: string | null;
+    usuarioId: number | null;
+    url: string | null;
+    expiraEn: number;
 }
 
 @Injectable()
@@ -108,6 +121,40 @@ export class StripeService {
                 moneda: sesion.currency,
                 referencia: typeof intento === 'string' ? intento : (intento?.id ?? sesion.id),
             };
+        }
+        catch (error) {
+            this.traducir(error);
+        }
+    }
+
+    async sesionesDeTicket(clave: string, desdeMs: number): Promise<SesionDeTicket[]> {
+        const cliente = this.cliente();
+        try {
+            const sesiones = await cliente.checkout.sessions
+                .list({ created: { gte: Math.floor(desdeMs / 1000) }, limit: 100 }, REVISION)
+                .autoPagingToArray({ limit: STRIPE_SESIONES_REVISADAS });
+            return sesiones
+                .filter((sesion) => sesion.client_reference_id === clave)
+                .map((sesion) => ({
+                    id: sesion.id,
+                    abierta: sesion.status === 'open',
+                    pagada: sesion.payment_status === 'paid',
+                    centavos: sesion.amount_total,
+                    moneda: sesion.currency,
+                    usuarioId: Number(sesion.metadata?.usuarioId) || null,
+                    url: sesion.url,
+                    expiraEn: sesion.expires_at * 1000,
+                }));
+        }
+        catch (error) {
+            this.traducir(error);
+        }
+    }
+
+    async expirar(id: string) {
+        const cliente = this.cliente();
+        try {
+            await cliente.checkout.sessions.expire(id, {}, REVISION);
         }
         catch (error) {
             this.traducir(error);

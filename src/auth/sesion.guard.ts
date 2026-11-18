@@ -32,7 +32,9 @@ export class SesionGuard implements CanActivate {
         catch {
             throw new UnauthorizedException('Token invalido');
         }
-        if (!datos.sub || !datos.sid) throw new UnauthorizedException('Token invalido');
+        if (!Number.isInteger(datos.sub) || datos.sub < 1 || typeof datos.sid !== 'string' || !datos.sid) {
+            throw new UnauthorizedException('Token invalido');
+        }
 
         const usuario = await this.usuarios.findOneBy({ id: datos.sub });
         if (!usuario || !usuario.activo || !usuario.sesionId || usuario.sesionId !== datos.sid) {

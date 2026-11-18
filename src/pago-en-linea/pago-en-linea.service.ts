@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { adjuntar } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
-import { ESTADO_CONCIERTO, ESTADO_TICKET, METODO_PAGO_TARJETA, STRIPE_MONEDA, STRIPE_MONTO_MINIMO } from '../constantes.js';
+import { ESTADO_CONCIERTO, ESTADO_TICKET, METODO_PAGO_TARJETA, STRIPE_MINUTOS_REUSO, STRIPE_MONEDA, STRIPE_MONTO_MINIMO } from '../constantes.js';
 import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Pago } from '../pago/entities/pago.entity.js';
 import { PagoService } from '../pago/pago.service.js';
@@ -13,11 +13,14 @@ import { Usuario } from '../usuario/entities/usuario.entity.js';
 import { ConfirmarPagoDto } from './dto/confirmar-pago.dto.js';
 import { CrearCheckoutDto } from './dto/crear-checkout.dto.js';
 import { aCentavos, expiraLaSesion, urlsDeRetorno } from './stripe.ayudas.js';
-import { StripeService } from './stripe.service.js';
+import { SesionDeTicket, StripeService } from './stripe.service.js';
+
+const MINUTO = 60 * 1000;
 
 @Injectable()
 export class PagoEnLineaService {
     private readonly logger = new Logger(PagoEnLineaService.name);
+    private readonly enCurso = new Map<string, Promise<unknown>>();
 
     constructor(
         @InjectRepository(Pago) private readonly pagos: Repository<Pago>,
@@ -78,6 +81,45 @@ export class PagoEnLineaService {
         return Object.assign(pago, { referencia });
     }
 
+    private async deUnoEnUno<T>(clave: string, tarea: () => Promise<T>) {
+        const anterior = this.enCurso.get(clave) ?? Promise.resolve();
+        const actual = anterior.catch(() => undefined).then(tarea);
+        this.enCurso.set(clave, actual);
+        try {
+            return await actual;
+        }
+        finally {
+            if (this.enCurso.get(clave) === actual) this.enCurso.delete(clave);
+        }
+    }
+
+    private async revisarSesionesPrevias(usuario: Usuario, ticket: Ticket, centavos: number) {
+        let previas: SesionDeTicket[];
+        try {
+            previas = await this.stripe.sesionesDeTicket(ticket.clave, ticket.creadoEn.getTime() - MINUTO);
+        }
+        catch (error) {
+            this.logger.warn(`No se pudieron revisar las paginas de pago anteriores del ticket ${ticket.clave}: ${(error as Error).message}`);
+            return null;
+        }
+        const propias = previas.filter((s) => s.usuarioId === usuario.id);
+        const esDeEsteTotal = (s: SesionDeTicket) => s.moneda === STRIPE_MONEDA && s.centavos === centavos;
+
+        const pagada = propias.find((s) => s.pagada && esDeEsteTotal(s));
+        if (pagada) {
+            await this.confirmar(usuario, { sessionId: pagada.id });
+            throw new ConflictException('Este ticket ya lo habias pagado con tarjeta: ya quedo registrado');
+        }
+
+        const abiertas = propias.filter((s) => s.abierta);
+        const buena = abiertas.find((s) => s.url && esDeEsteTotal(s) && s.expiraEn - Date.now() >= STRIPE_MINUTOS_REUSO * MINUTO);
+        for (const s of abiertas) {
+            if (s === buena) continue;
+            await this.stripe.expirar(s.id).catch((error: Error) => this.logger.warn(`No se pudo cerrar la sesion ${s.id}: ${error.message}`));
+        }
+        return buena ? { sessionId: buena.id, url: buena.url } : null;
+    }
+
     async estado() {
         try {
             return { disponible: this.stripe.disponible && !(await this.tarjetaDesactivada()) };
@@ -97,7 +139,11 @@ export class PagoEnLineaService {
         }
     }
 
-    async crearCheckout(usuario: Usuario, dto: CrearCheckoutDto) {
+    crearCheckout(usuario: Usuario, dto: CrearCheckoutDto) {
+        return this.deUnoEnUno(dto.clave, () => this.abrirCheckout(usuario, dto));
+    }
+
+    private async abrirCheckout(usuario: Usuario, dto: CrearCheckoutDto) {
         try {
             this.exigirStripe();
             const urls = urlsDeRetorno(process.env.FRONT_URL);
@@ -118,6 +164,9 @@ export class PagoEnLineaService {
             if (expiraEn === null) {
                 throw new ConflictException('Al ticket le queda muy poco tiempo para pagar con tarjeta: pagalo en taquilla');
             }
+
+            const existente = await this.revisarSesionesPrevias(usuario, ticket, centavos);
+            if (existente) return existente;
 
             const sesion = await this.stripe.crearSesion({
                 clave: ticket.clave,
