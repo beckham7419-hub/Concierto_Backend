@@ -9,6 +9,7 @@ export const PASSWORD_MAX = 72;
 export const MAX_FILAS = 26;
 export const MAX_ASIENTOS_FILA = 50;
 
+export const PRECIO_MIN = 10;
 export const PRECIO_MAX = 100000;
 export const MONTO_RECIBIDO_MAX = 1000000;
 

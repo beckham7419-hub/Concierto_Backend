@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, ArrayUnique, IsArray, IsInt, IsNumber, IsObject, IsPositive, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, ArrayUnique, IsArray, IsInt, IsNumber, IsObject, Max, Min, ValidateNested } from 'class-validator';
 import { DosDecimales } from '../../common/dto-ayudas.js';
-import { PRECIO_MAX } from '../../constantes.js';
+import { PRECIO_MAX, PRECIO_MIN } from '../../constantes.js';
 
 export class PrecioZonaDto {
     @IsInt()
@@ -9,7 +9,7 @@ export class PrecioZonaDto {
     zonaId: number;
 
     @IsNumber()
-    @IsPositive()
+    @Min(PRECIO_MIN)
     @DosDecimales()
     @Max(PRECIO_MAX)
     precio: number;
