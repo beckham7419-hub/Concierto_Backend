@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { compare, hash } from 'bcryptjs';
@@ -8,6 +8,7 @@ import { manejarError } from '../common/manejar-error.js';
 import { ROL } from '../constantes.js';
 import { Rol } from '../roles/rol.entity.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
+import { ActualizarPerfilDto } from './dto/actualizar-perfil.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegistroDto } from './dto/registro.dto.js';
 
@@ -55,6 +56,28 @@ export class AuthService {
         }
         catch (error) {
             manejarError(error, 'Error al iniciar sesion');
+        }
+    }
+
+    async actualizarPerfil(usuario: Usuario, dto: ActualizarPerfilDto) {
+        try {
+            const cambios: Partial<Usuario> = {};
+            if (dto.nombre !== undefined) cambios.nombre = dto.nombre;
+            if (dto.apellido !== undefined) cambios.apellido = dto.apellido;
+            if (dto.telefono !== undefined) cambios.telefono = dto.telefono;
+            if (dto.contrasenaNueva !== undefined) {
+                if (!(await compare(dto.contrasenaActual ?? '', usuario.contrasena))) {
+                    throw new BadRequestException('La contraseña actual no es correcta');
+                }
+                cambios.contrasena = await hash(dto.contrasenaNueva, 10);
+            }
+            if (Object.keys(cambios).length > 0) await this.usuarios.update(usuario.id, cambios);
+            const actualizado = await this.usuarios.findOneByOrFail({ id: usuario.id });
+            actualizado.rol = await this.roles.findOneByOrFail({ id: actualizado.rolId });
+            return actualizado;
+        }
+        catch (error) {
+            manejarError(error, 'Error al actualizar tu perfil');
         }
     }
 

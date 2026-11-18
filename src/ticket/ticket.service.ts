@@ -267,7 +267,7 @@ export class TicketService {
         try {
             await this.vencerPendientes();
             const ticket = await buscarActivo(this.tickets, id, 'Ticket', false);
-            if (ticket.estado === ESTADO_TICKET.PAGADO) await this.validarDiaDelConcierto(ticket.conciertoId);
+            if (ticket.estado === ESTADO_TICKET.PAGADO || ticket.estado === ESTADO_TICKET.PENDIENTE) await this.validarDiaDelConcierto(ticket.conciertoId);
             const cambio = await this.tickets.update(
                 { id: ticket.id, estado: ESTADO_TICKET.PAGADO },
                 { estado: ESTADO_TICKET.USADO, usadoEn: new Date(), usadoPorId: usuario.id },

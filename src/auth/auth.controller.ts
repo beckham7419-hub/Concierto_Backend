@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req } from '@nestjs/common';
 import { ROL } from '../constantes.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
 import { AuthService } from './auth.service.js';
 import { Public, Roles } from './decoradores.js';
+import { ActualizarPerfilDto } from './dto/actualizar-perfil.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegistroDto } from './dto/registro.dto.js';
 
@@ -32,5 +33,11 @@ export class AuthController {
     @Get('perfil')
     perfil(@Req() req: { usuario: Usuario }) {
         return req.usuario;
+    }
+
+    @Roles(ROL.ADMIN, ROL.CLIENTE)
+    @Patch('perfil')
+    actualizarPerfil(@Req() req: { usuario: Usuario }, @Body() dto: ActualizarPerfilDto) {
+        return this.authService.actualizarPerfil(req.usuario, dto);
     }
 }
