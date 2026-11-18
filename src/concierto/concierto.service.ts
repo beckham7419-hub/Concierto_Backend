@@ -1,12 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, EntityManager, In, MoreThan, Not, Repository } from 'typeorm';
+import { Between, DataSource, EntityManager, In, LessThan, MoreThan, Not, Repository } from 'typeorm';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
-import { ESTADO_CONCIERTO, ESTADO_TICKET, OCUPADO } from '../constantes.js';
+import { ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_FINALIZAR_CONCIERTO, MINUTOS_REVISAR_FINALIZADOS, OCUPADO } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { Ticket } from '../ticket/entities/ticket.entity.js';
@@ -18,7 +18,7 @@ import { UpdateConciertoDto } from './dto/update-concierto.dto.js';
 import { Concierto } from './entities/concierto.entity.js';
 
 @Injectable()
-export class ConciertoService {
+export class ConciertoService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(Concierto) private readonly conciertos: Repository<Concierto>,
     @InjectRepository(ConciertoArtista) private readonly conciertoArtistas: Repository<ConciertoArtista>,
@@ -28,6 +28,34 @@ export class ConciertoService {
     @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
     private readonly dataSource: DataSource,
   ) {}
+
+  private temporizador?: NodeJS.Timeout;
+
+  onModuleInit() {
+    void this.finalizarSinFallar();
+    this.temporizador = setInterval(() => void this.finalizarSinFallar(), MINUTOS_REVISAR_FINALIZADOS * 60 * 1000);
+    this.temporizador.unref();
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.temporizador);
+  }
+
+  private async finalizarSinFallar() {
+    try {
+      await this.finalizarPasados();
+    }
+    catch {
+    }
+  }
+
+  async finalizarPasados() {
+    const limite = new Date(Date.now() - HORAS_FINALIZAR_CONCIERTO * 60 * 60 * 1000);
+    await this.conciertos.update(
+      { estado: ESTADO_CONCIERTO.PROGRAMADO, fecha: LessThan(limite) },
+      { estado: ESTADO_CONCIERTO.FINALIZADO },
+    );
+  }
 
   private armarFecha(texto: string) {
     const fecha = new Date(texto);
@@ -123,6 +151,7 @@ export class ConciertoService {
 
   async findAll() {
     try {
+      await this.finalizarPasados();
       const lista = await this.conciertos.find({ order: { id: 'ASC' } });
       return await adjuntar(lista, 'recintoId', this.recintos, 'recinto');
     }
@@ -133,6 +162,7 @@ export class ConciertoService {
 
   async findOne(id: number) {
     try {
+      await this.finalizarPasados();
       const concierto = await buscarActivo(this.conciertos, id, 'Concierto', false);
       return await this.armar(concierto);
     }
@@ -143,9 +173,11 @@ export class ConciertoService {
 
   async update(id: number, dto: UpdateConciertoDto) {
     try {
+      await this.finalizarPasados();
       const nueva = dto.fecha !== undefined ? this.armarFecha(dto.fecha) : undefined;
       await this.transaccion(async (manager) => {
         const actual = await this.bloquearConcierto(manager, id);
+        if (actual.estado === ESTADO_CONCIERTO.FINALIZADO) throw new ConflictException('El concierto ya finalizo');
         const recintoId = dto.recintoId ?? actual.recintoId;
         const fecha = nueva ?? actual.fecha;
         const cambiaFecha = fecha.getTime() !== actual.fecha.getTime();
@@ -180,8 +212,10 @@ export class ConciertoService {
 
   async cancelar(id: number) {
     try {
+      await this.finalizarPasados();
       await this.transaccion(async (manager) => {
-        await this.bloquearConcierto(manager, id);
+        const actual = await this.bloquearConcierto(manager, id);
+        if (actual.estado === ESTADO_CONCIERTO.FINALIZADO) throw new ConflictException('El concierto ya finalizo');
         const hayPagados = await manager.existsBy(Ticket, [
           { conciertoId: id, estado: ESTADO_TICKET.PAGADO },
           { conciertoId: id, estado: ESTADO_TICKET.USADO },

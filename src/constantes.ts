@@ -16,7 +16,11 @@ export const MONTO_RECIBIDO_MAX = 1000000;
 export const ESTADO_CONCIERTO = {
     PROGRAMADO: 'programado',
     CANCELADO: 'cancelado',
+    FINALIZADO: 'finalizado',
 } as const;
+
+export const HORAS_FINALIZAR_CONCIERTO = 6;
+export const MINUTOS_REVISAR_FINALIZADOS = 1;
 
 export const ESTADO_TICKET = {
     PENDIENTE: 'pendiente',
