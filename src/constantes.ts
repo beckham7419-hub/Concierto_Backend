@@ -34,6 +34,11 @@ export const MAX_ASIENTOS_TICKET = 8;
 export const MAX_TICKETS_PENDIENTES = 3;
 export const HORAS_LIMITE_PAGO = 48;
 
+export const TICKETS_POR_PAGINA = 20;
+export const TICKETS_POR_PAGINA_MAX = 100;
+export const PAGINA_MAX = 100000;
+export const ULTIMAS_ENTRADAS = 8;
+
 export const LARGO_CLAVE = 8;
 export const ALFABETO_CLAVE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 

@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import { Roles } from '../auth/decoradores.js';
 import { ROL } from '../constantes.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
 import { CreateTicketDto } from './dto/create-ticket.dto.js';
+import { FiltrosTicketDto } from './dto/filtros-ticket.dto.js';
 import { TicketService } from './ticket.service.js';
 
 @Controller('tickets')
@@ -19,6 +20,18 @@ export class TicketController {
     @Get('mis')
     misTickets(@Req() req: { usuario: Usuario }) {
         return this.ticketService.misTickets(req.usuario);
+    }
+
+    @Roles(ROL.ADMIN)
+    @Get()
+    findAll(@Query() filtros: FiltrosTicketDto) {
+        return this.ticketService.findAll(filtros);
+    }
+
+    @Roles(ROL.ADMIN)
+    @Get('entradas-hoy')
+    entradasDeHoy() {
+        return this.ticketService.entradasDeHoy();
     }
 
     @Roles(ROL.ADMIN)

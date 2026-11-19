@@ -1,19 +1,22 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomInt } from 'crypto';
-import { DataSource, EntityManager, In, LessThan, Repository } from 'typeorm';
+import { And, DataSource, EntityManager, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
 import { adjuntar, buscarActivo } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { ALFABETO_CLAVE, ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_LIMITE_PAGO, LARGO_CLAVE, MAX_TICKETS_PENDIENTES, OCUPADO, ROL } from '../constantes.js';
+import { ALFABETO_CLAVE, ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_LIMITE_PAGO, LARGO_CLAVE, MAX_TICKETS_PENDIENTES, OCUPADO, ROL, TICKETS_POR_PAGINA, ULTIMAS_ENTRADAS } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
+import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
+import { Pago } from '../pago/entities/pago.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
 import { Zona } from '../zona/entities/zona.entity.js';
 import { CreateTicketDto } from './dto/create-ticket.dto.js';
+import { FiltrosTicketDto } from './dto/filtros-ticket.dto.js';
 import { Ticket } from './entities/ticket.entity.js';
 
 @Injectable()
@@ -21,6 +24,8 @@ export class TicketService {
     constructor(
         @InjectRepository(Ticket) private readonly tickets: Repository<Ticket>,
         @InjectRepository(DetalleTicket) private readonly detalles: Repository<DetalleTicket>,
+        @InjectRepository(Pago) private readonly pagos: Repository<Pago>,
+        @InjectRepository(MetodoPago) private readonly metodosPago: Repository<MetodoPago>,
         @InjectRepository(Concierto) private readonly conciertos: Repository<Concierto>,
         @InjectRepository(Recinto) private readonly recintos: Repository<Recinto>,
         @InjectRepository(Ciudad) private readonly ciudades: Repository<Ciudad>,
@@ -139,8 +144,21 @@ export class TicketService {
             ? await this.zonas.findBy({ id: In([...new Set(asientos.map((a) => a.zonaId))]) })
             : [];
         const zonaPorId = new Map(zonas.map((z) => [z.id, z]));
+        const pagos = await this.pagos.findBy({ ticketId: In(lista.map((t) => t.id)) });
+        await adjuntar(pagos, 'metodoPagoId', this.metodosPago, 'metodoPago');
+        const pagoPorTicket = new Map(pagos.map((p) => [p.ticketId, p]));
 
         for (const ticket of lista) {
+            const pago = pagoPorTicket.get(ticket.id);
+            ticket.pago = pago
+                ? {
+                    creadoEn: pago.creadoEn,
+                    metodo: pago.metodoPago?.nombre ?? '',
+                    monto: pago.monto,
+                    montoRecibido: pago.montoRecibido,
+                    cambio: pago.cambio,
+                }
+                : null;
             ticket.asientos = [];
             for (const detalle of detalles) {
                 const asiento = asientoPorId.get(detalle.asientoId);
@@ -162,6 +180,19 @@ export class TicketService {
         await adjuntar(conciertos, 'recintoId', this.recintos, 'recinto');
         const recintos = conciertos.map((c) => c.recinto).filter((r) => r != null);
         await adjuntar(recintos, 'ciudadId', this.ciudades, 'ciudad');
+        return lista;
+    }
+
+    private async adjuntarClientes(lista: Ticket[]) {
+        const ids = [...new Set(lista.map((t) => t.usuarioId))];
+        const clientes = ids.length ? await this.usuarios.findBy({ id: In(ids) }) : [];
+        const clientePorId = new Map(clientes.map((c) => [c.id, c]));
+        for (const ticket of lista) {
+            const cliente = clientePorId.get(ticket.usuarioId);
+            ticket.usuario = cliente
+                ? { id: cliente.id, nombre: cliente.nombre, apellido: cliente.apellido, correo: cliente.correo }
+                : undefined;
+        }
         return lista;
     }
 
@@ -228,14 +259,63 @@ export class TicketService {
         }
     }
 
+    async findAll(filtros: FiltrosTicketDto) {
+        try {
+            await this.vencerPendientes();
+            const limite = filtros.limite ?? TICKETS_POR_PAGINA;
+            const pagina = filtros.pagina ?? 1;
+            const delConcierto = filtros.conciertoId ? { conciertoId: filtros.conciertoId } : {};
+
+            const porEstado: Record<string, number> = {};
+            for (const estado of Object.values(ESTADO_TICKET)) {
+                porEstado[estado] = await this.tickets.countBy({ ...delConcierto, estado });
+            }
+
+            const [lista, total] = await this.tickets.findAndCount({
+                where: filtros.estado ? { ...delConcierto, estado: filtros.estado } : delConcierto,
+                order: { id: 'DESC' },
+                take: limite,
+                skip: (pagina - 1) * limite,
+            });
+            await this.armar(lista);
+            await this.adjuntarClientes(lista);
+            return { tickets: lista, total, pagina, limite, porEstado };
+        }
+        catch (error) {
+            manejarError(error, 'Error al obtener los tickets');
+        }
+    }
+
+    async entradasDeHoy() {
+        try {
+            const inicio = new Date();
+            inicio.setHours(0, 0, 0, 0);
+            const fin = new Date(inicio);
+            fin.setDate(fin.getDate() + 1);
+
+            const usados = await this.tickets.find({
+                where: { estado: ESTADO_TICKET.USADO, usadoEn: And(MoreThanOrEqual(inicio), LessThan(fin)) },
+                order: { usadoEn: 'DESC', id: 'DESC' },
+            });
+            const personas = usados.length ? await this.detalles.countBy({ ticketId: In(usados.map((t) => t.id)) }) : 0;
+
+            const ultimas = usados.slice(0, ULTIMAS_ENTRADAS);
+            await this.armar(ultimas);
+            await this.adjuntarClientes(ultimas);
+            return { tickets: usados.length, personas, ultimas };
+        }
+        catch (error) {
+            manejarError(error, 'Error al obtener las entradas de hoy');
+        }
+    }
+
     async buscarPorClave(clave: string) {
         try {
             await this.vencerPendientes();
             const ticket = await this.tickets.findOneBy({ clave: clave.trim().toUpperCase() });
             if (!ticket) throw new NotFoundException('Ticket no encontrado');
             await this.armar([ticket]);
-            const cliente = await this.usuarios.findOneBy({ id: ticket.usuarioId });
-            ticket.usuario = cliente ? { id: cliente.id, nombre: cliente.nombre, apellido: cliente.apellido } : undefined;
+            await this.adjuntarClientes([ticket]);
             return ticket;
         }
         catch (error) {

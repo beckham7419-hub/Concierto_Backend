@@ -36,7 +36,9 @@ export class Ticket {
     @Column({ type: 'int', nullable: true })
     usadoPorId: number | null;
 
+    pago?: { creadoEn: Date; metodo: string; monto: string; montoRecibido: string; cambio: string } | null;
+
     asientos?: { asientoId: number; zonaId: number; zona: string; fila: string; numero: number; precio: string }[];
 
-    usuario?: { id: number; nombre: string; apellido: string };
+    usuario?: { id: number; nombre: string; apellido: string; correo: string };
 }
