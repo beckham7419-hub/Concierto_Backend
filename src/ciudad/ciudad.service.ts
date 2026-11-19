@@ -4,6 +4,7 @@ import { Not, Repository } from 'typeorm';
 import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { Estado } from '../estado/entities/estado.entity.js';
+import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { CreateCiudadDto } from './dto/create-ciudad.dto.js';
 import { UpdateCiudadDto } from './dto/update-ciudad.dto.js';
 import { Ciudad } from './entities/ciudad.entity.js';
@@ -13,6 +14,7 @@ export class CiudadService {
   constructor(
     @InjectRepository(Ciudad) private readonly ciudades: Repository<Ciudad>,
     @InjectRepository(Estado) private readonly estados: Repository<Estado>,
+    @InjectRepository(Recinto) private readonly recintos: Repository<Recinto>,
   ) {}
 
   private async validarNombre(nombre: string, estadoId: number, idPropio?: number) {
@@ -76,6 +78,9 @@ export class CiudadService {
   async desactivar(id: number) {
     try {
       await buscarActivo(this.ciudades, id, 'Ciudad', false);
+      if (await this.recintos.existsBy({ ciudadId: id, activo: true })) {
+        throw new ConflictException('La ciudad tiene recintos activos');
+      }
       await this.ciudades.update({ id }, { activo: false });
       return { ok: true };
     }

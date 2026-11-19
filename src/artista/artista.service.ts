@@ -1,8 +1,11 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, MoreThan, Not, Repository } from 'typeorm';
 import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
+import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
+import { Concierto } from '../concierto/entities/concierto.entity.js';
+import { ESTADO_CONCIERTO } from '../constantes.js';
 import { Genero } from '../genero/entities/genero.entity.js';
 import { CreateArtistaDto } from './dto/create-artista.dto.js';
 import { UpdateArtistaDto } from './dto/update-artista.dto.js';
@@ -88,7 +91,18 @@ export class ArtistaService {
   async desactivar(id: number) {
     try {
       await buscarActivo(this.artistas, id, 'Artista', false);
-      await this.artistas.update({ id }, { activo: false });
+      await this.transaccion(async (manager) => {
+        const artista = await manager.findOne(Artista, { where: { id }, lock: { mode: 'pessimistic_write' } });
+        if (!artista) throw new NotFoundException('Artista no encontrado');
+        const asignados = await manager.findBy(ConciertoArtista, { artistaId: id });
+        const hayConciertos = asignados.length > 0 && (await manager.existsBy(Concierto, {
+          id: In(asignados.map((a) => a.conciertoId)),
+          estado: ESTADO_CONCIERTO.PROGRAMADO,
+          fecha: MoreThan(new Date()),
+        }));
+        if (hayConciertos) throw new ConflictException('El artista tiene conciertos programados');
+        await manager.update(Artista, { id }, { activo: false });
+      });
       return { ok: true };
     }
     catch (error) {

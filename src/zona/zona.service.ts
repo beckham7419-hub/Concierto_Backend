@@ -1,9 +1,12 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, MoreThan, Not, Repository } from 'typeorm';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
+import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
+import { Concierto } from '../concierto/entities/concierto.entity.js';
+import { ESTADO_CONCIERTO } from '../constantes.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { CreateZonaDto } from './dto/create-zona.dto.js';
 import { UpdateZonaDto } from './dto/update-zona.dto.js';
@@ -17,6 +20,10 @@ export class ZonaService {
     @InjectRepository(Asiento) private readonly asientos: Repository<Asiento>,
     private readonly dataSource: DataSource,
   ) {}
+
+  private transaccion<T>(trabajo: (manager: EntityManager) => Promise<T>) {
+    return this.dataSource.transaction('READ COMMITTED', trabajo);
+  }
 
   private async validarNombre(nombre: string, recintoId: number, idPropio?: number) {
     const donde = idPropio ? { nombre, recintoId, id: Not(idPropio) } : { nombre, recintoId };
@@ -92,7 +99,18 @@ export class ZonaService {
   async desactivar(id: number) {
     try {
       await buscarActivo(this.zonas, id, 'Zona', false);
-      await this.zonas.update({ id }, { activo: false });
+      await this.transaccion(async (manager) => {
+        const zona = await manager.findOne(Zona, { where: { id }, lock: { mode: 'pessimistic_write' } });
+        if (!zona) throw new NotFoundException('Zona no encontrado');
+        const precios = await manager.findBy(ConciertoZona, { zonaId: id });
+        const hayConciertos = precios.length > 0 && (await manager.existsBy(Concierto, {
+          id: In(precios.map((p) => p.conciertoId)),
+          estado: ESTADO_CONCIERTO.PROGRAMADO,
+          fecha: MoreThan(new Date()),
+        }));
+        if (hayConciertos) throw new ConflictException('La zona tiene conciertos programados');
+        await manager.update(Zona, { id }, { activo: false });
+      });
       return { ok: true };
     }
     catch (error) {

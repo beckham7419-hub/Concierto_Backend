@@ -240,7 +240,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.transaccion(async (manager) => {
         await this.bloquearConcierto(manager, id);
-        const artistas = await manager.findBy(Artista, { id: In(dto.artistaIds), activo: true });
+        const artistas = await manager.find(Artista, { where: { id: In(dto.artistaIds), activo: true }, lock: { mode: 'pessimistic_read' } });
         if (artistas.length !== dto.artistaIds.length) throw new NotFoundException('Artista no encontrado');
 
         await manager.delete(ConciertoArtista, { conciertoId: id });
@@ -258,7 +258,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
       const zonaIds = dto.precios.map((p) => p.zonaId);
       await this.transaccion(async (manager) => {
         const concierto = await this.bloquearConcierto(manager, id);
-        const zonas = await manager.findBy(Zona, { id: In(zonaIds), activo: true });
+        const zonas = await manager.find(Zona, { where: { id: In(zonaIds), activo: true }, lock: { mode: 'pessimistic_read' } });
         if (zonas.length !== zonaIds.length) throw new NotFoundException('Zona no encontrado');
         if (zonas.some((z) => z.recintoId !== concierto.recintoId)) {
           throw new BadRequestException('La zona no es del recinto de este concierto');

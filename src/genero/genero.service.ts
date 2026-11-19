@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
+import { Artista } from '../artista/entities/artista.entity.js';
 import { buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { CreateGeneroDto } from './dto/create-genero.dto.js';
@@ -11,6 +12,7 @@ import { Genero } from './entities/genero.entity.js';
 export class GeneroService {
   constructor(
     @InjectRepository(Genero) private readonly generos: Repository<Genero>,
+    @InjectRepository(Artista) private readonly artistas: Repository<Artista>,
   ) {}
 
   private async validarNombre(nombre: string, idPropio?: number) {
@@ -64,6 +66,9 @@ export class GeneroService {
   async desactivar(id: number) {
     try {
       await buscarActivo(this.generos, id, 'Genero', false);
+      if (await this.artistas.existsBy({ generoId: id, activo: true })) {
+        throw new ConflictException('El genero tiene artistas activos');
+      }
       await this.generos.update({ id }, { activo: false });
       return { ok: true };
     }
