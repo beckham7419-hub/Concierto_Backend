@@ -65,8 +65,8 @@ export class SeedService implements OnModuleInit {
         if (!isEmail(correo)) {
             throw new Error('ADMIN_CORREO no es un correo valido');
         }
-        if (contrasena.length < PASSWORD_MIN || contrasena.length > PASSWORD_MAX) {
-            throw new Error(`ADMIN_PASSWORD debe tener de ${PASSWORD_MIN} a ${PASSWORD_MAX} caracteres`);
+        if (contrasena.length < PASSWORD_MIN || Buffer.byteLength(contrasena, 'utf8') > PASSWORD_MAX) {
+            throw new Error(`ADMIN_PASSWORD debe tener de ${PASSWORD_MIN} caracteres a ${PASSWORD_MAX} bytes`);
         }
         if (await this.usuarios.existsBy({ correo })) {
             throw new Error(`El correo ${correo} ya lo usa un usuario que no es administrador: cambia ADMIN_CORREO en el .env`);

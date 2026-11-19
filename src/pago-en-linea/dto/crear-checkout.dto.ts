@@ -1,11 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsString, Length } from 'class-validator';
+import { IsString, Matches } from 'class-validator';
 import { mayusculas } from '../../common/dto-ayudas.js';
-import { LARGO_CLAVE } from '../../constantes.js';
+import { FORMATO_CLAVE } from '../../constantes.js';
 
 export class CrearCheckoutDto {
     @Transform(mayusculas)
     @IsString()
-    @Length(LARGO_CLAVE, LARGO_CLAVE)
+    @Matches(FORMATO_CLAVE, { message: 'clave must be a valid ticket key' })
     clave: string;
 }

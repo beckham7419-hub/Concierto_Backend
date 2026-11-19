@@ -41,6 +41,7 @@ export const ULTIMAS_ENTRADAS = 8;
 
 export const LARGO_CLAVE = 8;
 export const ALFABETO_CLAVE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const FORMATO_CLAVE = new RegExp(`^[${ALFABETO_CLAVE}]{${LARGO_CLAVE}}$`);
 
 export const OCUPADO = 1;
 

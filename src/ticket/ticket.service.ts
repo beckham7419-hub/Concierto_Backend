@@ -8,7 +8,7 @@ import { adjuntar, buscarActivo } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { ALFABETO_CLAVE, ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_LIMITE_PAGO, LARGO_CLAVE, MAX_TICKETS_PENDIENTES, OCUPADO, ROL, TICKETS_POR_PAGINA, ULTIMAS_ENTRADAS } from '../constantes.js';
+import { ALFABETO_CLAVE, ESTADO_CONCIERTO, ESTADO_TICKET, FORMATO_CLAVE, HORAS_LIMITE_PAGO, LARGO_CLAVE, MAX_TICKETS_PENDIENTES, OCUPADO, ROL, TICKETS_POR_PAGINA, ULTIMAS_ENTRADAS } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Pago } from '../pago/entities/pago.entity.js';
@@ -312,7 +312,9 @@ export class TicketService {
     async buscarPorClave(clave: string) {
         try {
             await this.vencerPendientes();
-            const ticket = await this.tickets.findOneBy({ clave: clave.trim().toUpperCase() });
+            const claveLimpia = clave.trim().toUpperCase();
+            if (!FORMATO_CLAVE.test(claveLimpia)) throw new NotFoundException('Ticket no encontrado');
+            const ticket = await this.tickets.findOneBy({ clave: claveLimpia });
             if (!ticket) throw new NotFoundException('Ticket no encontrado');
             await this.armar([ticket]);
             await this.adjuntarClientes([ticket]);

@@ -1,7 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../../constantes.js';
-import { limpiar, minusculas, Opcional } from '../../common/dto-ayudas.js';
+import { limpiar, MaxBytes, minusculas, Opcional } from '../../common/dto-ayudas.js';
 
 export class UpdateUsuarioDto {
     @Opcional()
@@ -28,6 +28,7 @@ export class UpdateUsuarioDto {
     @IsString()
     @MinLength(PASSWORD_MIN)
     @MaxLength(PASSWORD_MAX)
+    @MaxBytes(PASSWORD_MAX)
     contrasena?: string;
 
     @IsOptional()

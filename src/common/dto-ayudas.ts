@@ -20,8 +20,20 @@ export const Opcional = () => ValidateIf((_objeto, valor) => valor !== undefined
 
 export const FechaConHora = () =>
     applyDecorators(
-        Matches(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/, { message: '$property must include the date and the time' }),
+        Matches(/^\d{4}-\d{2}-\d{2}[T ]([01]\d|2[0-3]):[0-5]\d/, { message: '$property must include the date and the time' }),
         IsISO8601({ strict: true }),
+    );
+
+export const MaxBytes = (maximo: number, opciones?: ValidationOptions) =>
+    ValidateBy(
+        {
+            name: 'maxBytes',
+            validator: {
+                validate: (valor) => typeof valor === 'string' && Buffer.byteLength(valor, 'utf8') <= maximo,
+                defaultMessage: buildMessage((prefijo) => prefijo + `$property must not be longer than ${maximo} bytes`, opciones),
+            },
+        },
+        opciones,
     );
 
 export const DosDecimales = (opciones?: ValidationOptions) =>

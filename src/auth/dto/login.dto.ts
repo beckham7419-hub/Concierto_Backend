@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString } from 'class-validator';
-import { minusculas } from '../../common/dto-ayudas.js';
+import { MaxBytes, minusculas } from '../../common/dto-ayudas.js';
+import { PASSWORD_MAX } from '../../constantes.js';
 
 export class LoginDto {
     @Transform(minusculas)
@@ -10,5 +11,6 @@ export class LoginDto {
 
     @IsString()
     @IsNotEmpty()
+    @MaxBytes(PASSWORD_MAX)
     contrasena: string;
 }

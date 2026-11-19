@@ -1,7 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../../constantes.js';
-import { limpiar, Opcional } from '../../common/dto-ayudas.js';
+import { limpiar, MaxBytes, Opcional } from '../../common/dto-ayudas.js';
 
 export class ActualizarPerfilDto {
     @Opcional()
@@ -26,11 +26,13 @@ export class ActualizarPerfilDto {
     @IsString()
     @IsNotEmpty({ message: 'Escribe tu contraseña actual' })
     @MaxLength(PASSWORD_MAX)
+    @MaxBytes(PASSWORD_MAX)
     contrasenaActual?: string;
 
     @Opcional()
     @IsString()
     @MinLength(PASSWORD_MIN)
     @MaxLength(PASSWORD_MAX)
+    @MaxBytes(PASSWORD_MAX)
     contrasenaNueva?: string;
 }

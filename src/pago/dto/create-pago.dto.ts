@@ -1,12 +1,12 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsNumber, IsPositive, IsString, Length, Max, Min } from 'class-validator';
+import { IsInt, IsNumber, IsPositive, IsString, Matches, Max, Min } from 'class-validator';
 import { DosDecimales, mayusculas } from '../../common/dto-ayudas.js';
-import { LARGO_CLAVE, MONTO_RECIBIDO_MAX } from '../../constantes.js';
+import { FORMATO_CLAVE, MONTO_RECIBIDO_MAX } from '../../constantes.js';
 
 export class CreatePagoDto {
     @Transform(mayusculas)
     @IsString()
-    @Length(LARGO_CLAVE, LARGO_CLAVE)
+    @Matches(FORMATO_CLAVE, { message: 'clave must be a valid ticket key' })
     clave: string;
 
     @IsInt()
