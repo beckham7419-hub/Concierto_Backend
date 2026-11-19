@@ -6,7 +6,7 @@ import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
-import { ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_FINALIZAR_CONCIERTO, MINUTOS_REVISAR_FINALIZADOS, OCUPADO } from '../constantes.js';
+import { ANIOS_MAX_CONCIERTO, ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_FINALIZAR_CONCIERTO, MINUTOS_REVISAR_FINALIZADOS, OCUPADO } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { Ticket } from '../ticket/entities/ticket.entity.js';
@@ -69,6 +69,14 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
   private validarFutura(fecha: Date) {
     if (fecha.getTime() <= Date.now()) {
       throw new BadRequestException('La fecha debe ser futura');
+    }
+  }
+
+  private validarLejana(fecha: Date) {
+    const limite = new Date();
+    limite.setFullYear(limite.getFullYear() + ANIOS_MAX_CONCIERTO);
+    if (fecha.getTime() > limite.getTime()) {
+      throw new BadRequestException('La fecha es demasiado lejana');
     }
   }
 
@@ -135,6 +143,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
     try {
       const fecha = this.armarFecha(dto.fecha);
       this.validarFutura(fecha);
+      this.validarLejana(fecha);
       const id = await this.transaccion(async (manager) => {
         await this.bloquearRecinto(manager, dto.recintoId);
         await this.validarDia(manager, dto.recintoId, fecha);
@@ -183,7 +192,10 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
         const cambiaFecha = fecha.getTime() !== actual.fecha.getTime();
         const cambiaRecinto = recintoId !== actual.recintoId;
 
-        if (cambiaFecha) this.validarFutura(fecha);
+        if (cambiaFecha) {
+          this.validarFutura(fecha);
+          this.validarLejana(fecha);
+        }
         if (cambiaFecha || cambiaRecinto) {
           if (await this.tieneTicketsVivos(manager, id)) {
             throw new ConflictException('Con tickets pendientes o pagados no se cambia el recinto ni la fecha');

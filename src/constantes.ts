@@ -20,6 +20,7 @@ export const ESTADO_CONCIERTO = {
 } as const;
 
 export const HORAS_FINALIZAR_CONCIERTO = 6;
+export const ANIOS_MAX_CONCIERTO = 2;
 export const MINUTOS_REVISAR_FINALIZADOS = 1;
 
 export const ESTADO_TICKET = {
