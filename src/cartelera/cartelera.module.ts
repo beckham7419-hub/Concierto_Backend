@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ApartadoModule } from '../apartado/apartado.module.js';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
@@ -10,6 +11,7 @@ import { BD_TICKET } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { TicketModule } from '../ticket/ticket.module.js';
+import { TiempoRealModule } from '../tiempo-real/tiempo-real.module.js';
 import { Zona } from '../zona/entities/zona.entity.js';
 import { CarteleraController } from './cartelera.controller.js';
 import { CarteleraService } from './cartelera.service.js';
@@ -19,6 +21,8 @@ import { CarteleraService } from './cartelera.service.js';
     TypeOrmModule.forFeature([Concierto, ConciertoArtista, ConciertoZona, Recinto, Ciudad, Artista, Zona, Asiento]),
     TypeOrmModule.forFeature([DetalleTicket], BD_TICKET),
     TicketModule,
+    ApartadoModule,
+    TiempoRealModule,
   ],
   controllers: [CarteleraController],
   providers: [CarteleraService],

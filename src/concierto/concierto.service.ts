@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, EntityManager, In, LessThan, MoreThan, Not, Repository } from 'typeorm';
+import { ApartadoService } from '../apartado/apartado.service.js';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
@@ -29,6 +30,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
     private readonly dataSource: DataSource,
     @InjectDataSource(BD_TICKET) private readonly dataSourceTickets: DataSource,
+    private readonly apartados: ApartadoService,
   ) {}
 
   private temporizador?: NodeJS.Timeout;
@@ -247,6 +249,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
         await managerTickets.update(DetalleTicket, { conciertoId: id, ocupado: OCUPADO }, { ocupado: null });
         await manager.update(Concierto, { id }, { estado: ESTADO_CONCIERTO.CANCELADO });
       });
+      this.apartados.purgarConcierto(id);
       return { ok: true };
     }
     catch (error) {

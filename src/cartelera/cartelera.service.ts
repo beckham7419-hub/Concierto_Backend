@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, MoreThan, Repository } from 'typeorm';
+import { ApartadoService } from '../apartado/apartado.service.js';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
@@ -9,11 +10,14 @@ import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { BD_TICKET, ESTADO_CONCIERTO, OCUPADO } from '../constantes.js';
+import { BD_TICKET, ESPERA_CAMBIOS_MS, ESTADO_CONCIERTO, OCUPADO } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { TicketService } from '../ticket/ticket.service.js';
+import { TiempoRealService } from '../tiempo-real/tiempo-real.service.js';
+import { Usuario } from '../usuario/entities/usuario.entity.js';
 import { Zona } from '../zona/entities/zona.entity.js';
+import { ApartarAsientoDto } from './dto/apartar-asiento.dto.js';
 import { FiltrosCarteleraDto } from './dto/filtros-cartelera.dto.js';
 
 @Injectable()
@@ -29,6 +33,8 @@ export class CarteleraService {
         @InjectRepository(Asiento) private readonly asientos: Repository<Asiento>,
         @InjectRepository(DetalleTicket, BD_TICKET) private readonly detalles: Repository<DetalleTicket>,
         private readonly ticketService: TicketService,
+        private readonly apartados: ApartadoService,
+        private readonly tiempoReal: TiempoRealService,
     ) {}
 
     private async buscarEnCartelera(id: number) {
@@ -39,6 +45,32 @@ export class CarteleraService {
         });
         if (!concierto) throw new NotFoundException('Concierto no encontrado');
         return concierto;
+    }
+
+    private async validarZona(id: number, zonaId: number) {
+        await this.buscarEnCartelera(id);
+        if (!(await this.conciertoZonas.existsBy({ conciertoId: id, zonaId }))) {
+            throw new NotFoundException('Zona no encontrado');
+        }
+    }
+
+    private async armarCambios(usuario: Usuario, id: number, zonaId: number) {
+        await this.validarZona(id, zonaId);
+        const version = this.tiempoReal.version(id);
+        const lista = await this.asientos.find({ where: { zonaId }, order: { fila: 'ASC', numero: 'ASC' } });
+        const tomados = await this.detalles.findBy({ conciertoId: id, ocupado: OCUPADO });
+        const vendidos = new Set(tomados.map((detalle) => detalle.asientoId));
+        const asientos = lista.map((asiento) => {
+            const dueno = this.apartados.duenoDe(id, asiento.id);
+            const estado = vendidos.has(asiento.id) ? 'vendido' : dueno === undefined ? 'libre' : dueno === usuario.id ? 'tuyo' : 'apartado';
+            return { id: asiento.id, fila: asiento.fila, numero: asiento.numero, estado, ocupado: estado === 'apartado' || estado === 'vendido' };
+        });
+        return {
+            version,
+            asientos,
+            misApartados: this.apartados.deUsuario(usuario.id, id),
+            expiraEn: this.apartados.plazoDe(usuario.id, id),
+        };
     }
 
     private async conciertosDe(artistaIds: number[]) {
@@ -146,5 +178,48 @@ export class CarteleraService {
         catch (error) {
             manejarError(error, 'Error al obtener los asientos de la zona');
         }
+    }
+
+    async cambios(usuario: Usuario, id: number, zonaId: number, version?: number, senal?: AbortSignal) {
+        try {
+            await this.validarZona(id, zonaId);
+            await this.tiempoReal.esperar(id, version, ESPERA_CAMBIOS_MS, senal);
+            if (senal?.aborted) return;
+            await this.ticketService.vencerPendientes();
+            return await this.armarCambios(usuario, id, zonaId);
+        }
+        catch (error) {
+            manejarError(error, 'Error al obtener los cambios de la zona');
+        }
+    }
+
+    async apartar(usuario: Usuario, id: number, dto: ApartarAsientoDto) {
+        try {
+            await this.ticketService.vencerPendientes();
+            await this.buscarEnCartelera(id);
+            const asiento = await this.asientos.findOneBy({ id: dto.asientoId });
+            if (!asiento) throw new NotFoundException('Asiento no encontrado');
+            if (!(await this.conciertoZonas.existsBy({ conciertoId: id, zonaId: asiento.zonaId }))) {
+                throw new BadRequestException('El asiento no es de este concierto');
+            }
+            const expiraEn = this.apartados.apartar(usuario.id, id, asiento.id);
+            if (await this.detalles.existsBy({ conciertoId: id, asientoId: asiento.id, ocupado: OCUPADO })) {
+                this.apartados.soltar(usuario.id, id, asiento.id);
+                throw new ConflictException('Ese asiento ya esta vendido');
+            }
+            return { expiraEn };
+        }
+        catch (error) {
+            manejarError(error, 'Error al apartar el asiento');
+        }
+    }
+
+    soltar(usuario: Usuario, id: number, asientoId: number) {
+        return { expiraEn: this.apartados.soltar(usuario.id, id, asientoId) };
+    }
+
+    soltarTodos(usuario: Usuario, id: number) {
+        this.apartados.soltarTodos(usuario.id, id);
+        return { expiraEn: null };
     }
 }

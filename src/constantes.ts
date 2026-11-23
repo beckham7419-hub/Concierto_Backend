@@ -38,6 +38,10 @@ export const MAX_ASIENTOS_TICKET = 8;
 export const MAX_TICKETS_PENDIENTES = 3;
 export const HORAS_LIMITE_PAGO = 48;
 
+export const MINUTOS_APARTADO = 5;
+export const REVISAR_APARTADOS_MS = 1000;
+export const ESPERA_CAMBIOS_MS = 25000;
+
 export const TICKETS_POR_PAGINA = 20;
 export const TICKETS_POR_PAGINA_MAX = 100;
 export const PAGINA_MAX = 100000;

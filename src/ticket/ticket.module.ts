@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ApartadoModule } from '../apartado/apartado.module.js';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
@@ -8,6 +9,7 @@ import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.
 import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Pago } from '../pago/entities/pago.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
+import { TiempoRealModule } from '../tiempo-real/tiempo-real.module.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
 import { Zona } from '../zona/entities/zona.entity.js';
 import { Ticket } from './entities/ticket.entity.js';
@@ -18,6 +20,8 @@ import { TicketService } from './ticket.service.js';
   imports: [
     TypeOrmModule.forFeature([MetodoPago, Concierto, Recinto, Ciudad, Asiento, Zona, Usuario]),
     TypeOrmModule.forFeature([Ticket, DetalleTicket, Pago], BD_TICKET),
+    ApartadoModule,
+    TiempoRealModule,
   ],
   controllers: [TicketController],
   providers: [TicketService],

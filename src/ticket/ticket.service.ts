@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomInt } from 'crypto';
 import { And, DataSource, EntityManager, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { ApartadoService } from '../apartado/apartado.service.js';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
 import { adjuntar, buscarActivo } from '../common/ayudas.js';
@@ -14,6 +15,7 @@ import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.
 import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Pago } from '../pago/entities/pago.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
+import { TiempoRealService } from '../tiempo-real/tiempo-real.service.js';
 import { Usuario } from '../usuario/entities/usuario.entity.js';
 import { Zona } from '../zona/entities/zona.entity.js';
 import { CreateTicketDto } from './dto/create-ticket.dto.js';
@@ -35,6 +37,8 @@ export class TicketService {
         @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
         private readonly dataSource: DataSource,
         @InjectDataSource(BD_TICKET) private readonly dataSourceTickets: DataSource,
+        private readonly apartados: ApartadoService,
+        private readonly tiempoReal: TiempoRealService,
     ) {}
 
     private transaccionTickets<T>(trabajo: (manager: EntityManager) => Promise<T>) {
@@ -82,6 +86,12 @@ export class TicketService {
             throw new ConflictException('Algun asiento ya esta ocupado');
         }
         return elegidos;
+    }
+
+    private validarApartados(usuarioId: number, conciertoId: number, asientoIds: number[]) {
+        if (this.apartados.hayDeOtros(usuarioId, conciertoId, asientoIds)) {
+            throw new ConflictException('Algun asiento lo esta apartando otra persona');
+        }
     }
 
     private async validarDiaDelConcierto(conciertoId: number) {
@@ -210,19 +220,21 @@ export class TicketService {
         });
         if (vencidos.length === 0) return;
 
-        await this.transaccionTickets(async (manager) => {
+        const conciertoIds = await this.transaccionTickets(async (manager) => {
             const ahora = new Date();
             const bloqueados = await manager.find(Ticket, {
                 where: { id: In(vencidos.map((t) => t.id)), estado: ESTADO_TICKET.PENDIENTE, fechaLimite: LessThan(ahora) },
                 order: { id: 'ASC' },
                 lock: { mode: 'pessimistic_write' },
             });
-            if (bloqueados.length === 0) return;
+            if (bloqueados.length === 0) return [];
 
             const ids = bloqueados.map((t) => t.id);
             await manager.update(Ticket, { id: In(ids) }, { estado: ESTADO_TICKET.VENCIDO });
             await manager.update(DetalleTicket, { ticketId: In(ids) }, { ocupado: null });
+            return bloqueados.map((t) => t.conciertoId);
         });
+        for (const conciertoId of new Set(conciertoIds)) this.tiempoReal.notificar(conciertoId);
     }
 
     async create(usuario: Usuario, dto: CreateTicketDto) {
@@ -233,6 +245,7 @@ export class TicketService {
                 const concierto = await this.bloquearConcierto(manager, dto.conciertoId);
                 await this.validarCupo(managerTickets, usuario.id);
                 const elegidos = await this.validarAsientos(manager, managerTickets, concierto.id, dto.asientoIds);
+                this.validarApartados(usuario.id, concierto.id, dto.asientoIds);
 
                 const ticket = await managerTickets.save(
                     managerTickets.create(Ticket, {
@@ -246,6 +259,7 @@ export class TicketService {
                 await this.guardarDetalles(managerTickets, ticket, elegidos);
                 return ticket.id;
             });
+            this.apartados.consumir(dto.conciertoId, dto.asientoIds);
             const ticket = await buscarActivo(this.tickets, id, 'Ticket', false);
             return (await this.armar([ticket]))[0];
         }
@@ -344,6 +358,7 @@ export class TicketService {
                 if (cambio.affected !== 1) throw new ConflictException('Solo se pueden cancelar tickets pendientes');
                 await manager.update(DetalleTicket, { ticketId: ticket.id }, { ocupado: null });
             });
+            this.tiempoReal.notificar(ticket.conciertoId);
             return { ok: true };
         }
         catch (error) {

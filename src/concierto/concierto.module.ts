@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ApartadoModule } from '../apartado/apartado.module.js';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
@@ -16,6 +17,7 @@ import { Concierto } from './entities/concierto.entity.js';
   imports: [
     TypeOrmModule.forFeature([Concierto, ConciertoArtista, ConciertoZona, Recinto, Artista, Zona]),
     TypeOrmModule.forFeature([Ticket, DetalleTicket], BD_TICKET),
+    ApartadoModule,
   ],
   controllers: [ConciertoController],
   providers: [ConciertoService],
