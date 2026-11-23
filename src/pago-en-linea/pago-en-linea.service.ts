@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { adjuntar } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
-import { ESTADO_CONCIERTO, ESTADO_TICKET, METODO_PAGO_TARJETA, STRIPE_MINUTOS_REUSO, STRIPE_MONEDA, STRIPE_MONTO_MINIMO } from '../constantes.js';
+import { BD_TICKET, ESTADO_CONCIERTO, ESTADO_TICKET, METODO_PAGO_TARJETA, STRIPE_MINUTOS_REUSO, STRIPE_MONEDA, STRIPE_MONTO_MINIMO } from '../constantes.js';
 import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Pago } from '../pago/entities/pago.entity.js';
 import { PagoService } from '../pago/pago.service.js';
@@ -23,8 +23,8 @@ export class PagoEnLineaService {
     private readonly enCurso = new Map<string, Promise<unknown>>();
 
     constructor(
-        @InjectRepository(Pago) private readonly pagos: Repository<Pago>,
-        @InjectRepository(Ticket) private readonly tickets: Repository<Ticket>,
+        @InjectRepository(Pago, BD_TICKET) private readonly pagos: Repository<Pago>,
+        @InjectRepository(Ticket, BD_TICKET) private readonly tickets: Repository<Ticket>,
         @InjectRepository(MetodoPago) private readonly metodosPago: Repository<MetodoPago>,
         private readonly ticketService: TicketService,
         private readonly pagoService: PagoService,

@@ -3,6 +3,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { ConfigModule } from '@nestjs/config';
 import { valeReintentar } from './common/arranque.js';
+import { BD_TICKET } from './constantes.js';
 import { TypeOrmModule} from '@nestjs/typeorm'
 import { RolesModule } from './roles/roles.module.js';
 import { UsuarioModule } from './usuario/usuario.module.js';
@@ -33,6 +34,18 @@ import { ReporteModule } from './reporte/reporte.module.js';
       username : process.env.DB_USERNAME,
       password : process.env.DB_PASSWORD,
       database : process.env.DB_DATABASE,
+      autoLoadEntities : true,
+      synchronize : process.env.DB_SYNC === 'true',
+      toRetry : valeReintentar
+    }),
+    TypeOrmModule.forRoot({
+      name : BD_TICKET,
+      type : "mysql",
+      host : process.env.DB_HOST,
+      port : Number(process.env.DB_PORT),
+      username : process.env.DB_USERNAME,
+      password : process.env.DB_PASSWORD,
+      database : process.env.DB_TICKET_DATABASE,
       autoLoadEntities : true,
       synchronize : process.env.DB_SYNC === 'true',
       toRetry : valeReintentar

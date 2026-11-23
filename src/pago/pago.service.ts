@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, MoreThan, Repository } from 'typeorm';
 import { adjuntar, buscarActivo } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
+import { transaccionDoble } from '../common/transaccion-doble.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { ESTADO_CONCIERTO, ESTADO_TICKET } from '../constantes.js';
+import { BD_TICKET, ESTADO_CONCIERTO, ESTADO_TICKET } from '../constantes.js';
 import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Ticket } from '../ticket/entities/ticket.entity.js';
 import { TicketService } from '../ticket/ticket.service.js';
@@ -15,15 +16,16 @@ import { Pago } from './entities/pago.entity.js';
 @Injectable()
 export class PagoService {
     constructor(
-        @InjectRepository(Pago) private readonly pagos: Repository<Pago>,
-        @InjectRepository(Ticket) private readonly tickets: Repository<Ticket>,
+        @InjectRepository(Pago, BD_TICKET) private readonly pagos: Repository<Pago>,
+        @InjectRepository(Ticket, BD_TICKET) private readonly tickets: Repository<Ticket>,
         @InjectRepository(MetodoPago) private readonly metodosPago: Repository<MetodoPago>,
         private readonly ticketService: TicketService,
         private readonly dataSource: DataSource,
+        @InjectDataSource(BD_TICKET) private readonly dataSourceTickets: DataSource,
     ) {}
 
-    private transaccion<T>(trabajo: (manager: EntityManager) => Promise<T>) {
-        return this.dataSource.transaction('READ COMMITTED', trabajo);
+    private transaccionDoble<T>(trabajo: (manager: EntityManager, managerTickets: EntityManager) => Promise<T>) {
+        return transaccionDoble(this.dataSource, this.dataSourceTickets, 'READ COMMITTED', trabajo);
     }
 
     private async bloquearConcierto(manager: EntityManager, id: number) {
@@ -49,9 +51,9 @@ export class PagoService {
         return ((centavosRecibidos - centavosTotal) / 100).toFixed(2);
     }
 
-    private async guardarPago(manager: EntityManager, datos: Partial<Pago>) {
+    private async guardarPago(managerTickets: EntityManager, datos: Partial<Pago>) {
         try {
-            return await manager.save(manager.create(Pago, datos));
+            return await managerTickets.save(managerTickets.create(Pago, datos));
         }
         catch (error) {
             if ((error as { code?: string })?.code === 'ER_DUP_ENTRY') throw new ConflictException('El ticket ya esta pagado');
@@ -68,15 +70,15 @@ export class PagoService {
             await buscarActivo(this.metodosPago, dto.metodoPagoId, 'Metodo de pago');
             const cambio = this.calcularCambio(ticket.total, dto.montoRecibido);
 
-            const id = await this.transaccion(async (manager) => {
+            const id = await this.transaccionDoble(async (manager, managerTickets) => {
                 await this.bloquearConcierto(manager, ticket.conciertoId);
-                const cambioEstado = await manager.update(
+                const cambioEstado = await managerTickets.update(
                     Ticket,
                     { id: ticket.id, estado: ESTADO_TICKET.PENDIENTE, fechaLimite: MoreThan(new Date()) },
                     { estado: ESTADO_TICKET.PAGADO },
                 );
                 if (cambioEstado.affected !== 1) throw new ConflictException('El ticket ya no esta pendiente');
-                const pago = await this.guardarPago(manager, {
+                const pago = await this.guardarPago(managerTickets, {
                     ticketId: ticket.id,
                     metodoPagoId: dto.metodoPagoId,
                     monto: ticket.total,

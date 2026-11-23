@@ -9,7 +9,7 @@ import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { ESTADO_CONCIERTO, OCUPADO } from '../constantes.js';
+import { BD_TICKET, ESTADO_CONCIERTO, OCUPADO } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { TicketService } from '../ticket/ticket.service.js';
@@ -27,7 +27,7 @@ export class CarteleraService {
         @InjectRepository(Artista) private readonly artistas: Repository<Artista>,
         @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
         @InjectRepository(Asiento) private readonly asientos: Repository<Asiento>,
-        @InjectRepository(DetalleTicket) private readonly detalles: Repository<DetalleTicket>,
+        @InjectRepository(DetalleTicket, BD_TICKET) private readonly detalles: Repository<DetalleTicket>,
         private readonly ticketService: TicketService,
     ) {}
 

@@ -28,6 +28,11 @@ export function revisarEnv(env: NodeJS.ProcessEnv = process.env): ResultadoEnv {
     else if (!esPuerto(valor('DB_PORT'))) errores.push(`DB_PORT debe ser un puerto entre 1 y 65535 (ahora vale "${valor('DB_PORT')}")`);
     if (valor('DB_USERNAME') === '') errores.push('Falta DB_USERNAME (el usuario de MySQL)');
     if (valor('DB_DATABASE') === '') errores.push('Falta DB_DATABASE (el nombre de la base de datos)');
+    if (valor('DB_TICKET_DATABASE') === '') {
+        errores.push('Falta DB_TICKET_DATABASE (el nombre de la base de datos aparte donde se guardan los tickets y los pagos, por ejemplo concierto_tickets)');
+    } else if (valor('DB_TICKET_DATABASE') === valor('DB_DATABASE')) {
+        avisos.push('DB_TICKET_DATABASE es igual a DB_DATABASE: los tickets y los pagos no quedan en una base de datos aparte');
+    }
 
     if (valor('JWT_SECRET') === '') {
         errores.push('Falta JWT_SECRET (un texto largo y secreto con el que se firman las sesiones)');
@@ -79,6 +84,21 @@ function codigosDe(error: unknown, nivel = 0): string[] {
     ];
 }
 
+function textosDe(error: unknown, nivel = 0): string[] {
+    if (typeof error !== 'object' || error === null || nivel > 3) return [];
+    const { sqlMessage, message, cause, errors } = error as { sqlMessage?: unknown; message?: unknown; cause?: unknown; errors?: unknown };
+    return [
+        ...(typeof sqlMessage === 'string' ? [sqlMessage] : []),
+        ...(typeof message === 'string' ? [message] : []),
+        ...textosDe(cause, nivel + 1),
+        ...(Array.isArray(errors) ? errors : []).flatMap((hijo) => textosDe(hijo, nivel + 1)),
+    ];
+}
+
+function baseDelError(error: unknown, env: NodeJS.ProcessEnv) {
+    return /(?:Unknown database|to database) '([^']+)'/.exec(textosDe(error).join(' '))?.[1] ?? env.DB_DATABASE;
+}
+
 const SIN_REINTENTO = ['ER_ACCESS_DENIED_ERROR', 'ER_DBACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR', 'ENOTFOUND'];
 
 export function valeReintentar(error: unknown) {
@@ -95,10 +115,12 @@ export function mensajeDeArranque(error: unknown, env: NodeJS.ProcessEnv = proce
         return `MySQL no acepto el usuario o la contrasena (DB_USERNAME=${env.DB_USERNAME}): revisa DB_USERNAME y DB_PASSWORD en el .env`;
     }
     if (es('ER_BAD_DB_ERROR')) {
-        return `La base de datos "${env.DB_DATABASE}" no existe en ${mysql}: crea la con CREATE DATABASE ${env.DB_DATABASE}; o corrige DB_DATABASE en el .env`;
+        const base = baseDelError(error, env);
+        const variable = base === env.DB_TICKETS_DATABASE && base !== env.DB_DATABASE ? 'DB_TICKETS_DATABASE' : 'DB_DATABASE';
+        return `La base de datos "${base}" no existe en ${mysql}: crea la con CREATE DATABASE ${base}; o corrige ${variable} en el .env`;
     }
     if (es('ER_DBACCESS_DENIED_ERROR')) {
-        return `El usuario "${env.DB_USERNAME}" no tiene permiso para usar la base "${env.DB_DATABASE}": dale permiso en MySQL o usa otro usuario en DB_USERNAME`;
+        return `El usuario "${env.DB_USERNAME}" no tiene permiso para usar la base "${baseDelError(error, env)}": dale permiso en MySQL o usa otro usuario en DB_USERNAME`;
     }
     if (es('ENOTFOUND')) {
         return `No se encontro el servidor "${env.DB_HOST}": revisa DB_HOST en el .env`;

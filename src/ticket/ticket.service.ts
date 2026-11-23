@@ -1,14 +1,15 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomInt } from 'crypto';
 import { And, DataSource, EntityManager, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
 import { adjuntar, buscarActivo } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
+import { transaccionDoble } from '../common/transaccion-doble.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { ALFABETO_CLAVE, ESTADO_CONCIERTO, ESTADO_TICKET, FORMATO_CLAVE, HORAS_LIMITE_PAGO, LARGO_CLAVE, MAX_TICKETS_PENDIENTES, OCUPADO, ROL, TICKETS_POR_PAGINA, ULTIMAS_ENTRADAS } from '../constantes.js';
+import { ALFABETO_CLAVE, BD_TICKET, ESTADO_CONCIERTO, ESTADO_TICKET, FORMATO_CLAVE, HORAS_LIMITE_PAGO, LARGO_CLAVE, MAX_TICKETS_PENDIENTES, OCUPADO, ROL, TICKETS_POR_PAGINA, ULTIMAS_ENTRADAS } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { MetodoPago } from '../metodo-pago/entities/metodo-pago.entity.js';
 import { Pago } from '../pago/entities/pago.entity.js';
@@ -22,9 +23,9 @@ import { Ticket } from './entities/ticket.entity.js';
 @Injectable()
 export class TicketService {
     constructor(
-        @InjectRepository(Ticket) private readonly tickets: Repository<Ticket>,
-        @InjectRepository(DetalleTicket) private readonly detalles: Repository<DetalleTicket>,
-        @InjectRepository(Pago) private readonly pagos: Repository<Pago>,
+        @InjectRepository(Ticket, BD_TICKET) private readonly tickets: Repository<Ticket>,
+        @InjectRepository(DetalleTicket, BD_TICKET) private readonly detalles: Repository<DetalleTicket>,
+        @InjectRepository(Pago, BD_TICKET) private readonly pagos: Repository<Pago>,
         @InjectRepository(MetodoPago) private readonly metodosPago: Repository<MetodoPago>,
         @InjectRepository(Concierto) private readonly conciertos: Repository<Concierto>,
         @InjectRepository(Recinto) private readonly recintos: Repository<Recinto>,
@@ -33,10 +34,15 @@ export class TicketService {
         @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
         @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
         private readonly dataSource: DataSource,
+        @InjectDataSource(BD_TICKET) private readonly dataSourceTickets: DataSource,
     ) {}
 
-    private transaccion<T>(trabajo: (manager: EntityManager) => Promise<T>) {
-        return this.dataSource.transaction('READ COMMITTED', trabajo);
+    private transaccionTickets<T>(trabajo: (manager: EntityManager) => Promise<T>) {
+        return this.dataSourceTickets.transaction('READ COMMITTED', trabajo);
+    }
+
+    private transaccionDoble<T>(trabajo: (manager: EntityManager, managerTickets: EntityManager) => Promise<T>) {
+        return transaccionDoble(this.dataSource, this.dataSourceTickets, 'READ COMMITTED', trabajo);
     }
 
     private async bloquearCliente(manager: EntityManager, id: number) {
@@ -52,14 +58,14 @@ export class TicketService {
         return concierto;
     }
 
-    private async validarCupo(manager: EntityManager, usuarioId: number) {
-        const pendientes = await manager.countBy(Ticket, { usuarioId, estado: ESTADO_TICKET.PENDIENTE });
+    private async validarCupo(managerTickets: EntityManager, usuarioId: number) {
+        const pendientes = await managerTickets.countBy(Ticket, { usuarioId, estado: ESTADO_TICKET.PENDIENTE });
         if (pendientes >= MAX_TICKETS_PENDIENTES) {
             throw new ConflictException('Ya tienes el maximo de tickets pendientes');
         }
     }
 
-    private async validarAsientos(manager: EntityManager, conciertoId: number, asientoIds: number[]) {
+    private async validarAsientos(manager: EntityManager, managerTickets: EntityManager, conciertoId: number, asientoIds: number[]) {
         const asientos = await manager.find(Asiento, { where: { id: In(asientoIds) }, order: { id: 'ASC' } });
         if (asientos.length !== asientoIds.length) throw new NotFoundException('Asiento no encontrado');
 
@@ -72,7 +78,7 @@ export class TicketService {
             return { asientoId: asiento.id, precio };
         });
 
-        if (await manager.existsBy(DetalleTicket, { conciertoId, asientoId: In(asientoIds), ocupado: OCUPADO })) {
+        if (await managerTickets.existsBy(DetalleTicket, { conciertoId, asientoId: In(asientoIds), ocupado: OCUPADO })) {
             throw new ConflictException('Algun asiento ya esta ocupado');
         }
         return elegidos;
@@ -97,18 +103,18 @@ export class TicketService {
         return limite.getTime() < concierto.fecha.getTime() ? limite : concierto.fecha;
     }
 
-    private async claveNueva(manager: EntityManager) {
+    private async claveNueva(managerTickets: EntityManager) {
         for (let intento = 0; intento < 10; intento++) {
             let clave = '';
             for (let i = 0; i < LARGO_CLAVE; i++) clave += ALFABETO_CLAVE[randomInt(ALFABETO_CLAVE.length)];
-            if (!(await manager.existsBy(Ticket, { clave }))) return clave;
+            if (!(await managerTickets.existsBy(Ticket, { clave }))) return clave;
         }
         throw new ConflictException('No se pudo generar la clave del ticket, intenta de nuevo');
     }
 
-    private async guardarDetalles(manager: EntityManager, ticket: Ticket, elegidos: { asientoId: number; precio: string }[]) {
+    private async guardarDetalles(managerTickets: EntityManager, ticket: Ticket, elegidos: { asientoId: number; precio: string }[]) {
         try {
-            await manager.insert(
+            await managerTickets.insert(
                 DetalleTicket,
                 elegidos.map((e) => ({
                     ticketId: ticket.id,
@@ -204,7 +210,7 @@ export class TicketService {
         });
         if (vencidos.length === 0) return;
 
-        await this.transaccion(async (manager) => {
+        await this.transaccionTickets(async (manager) => {
             const ahora = new Date();
             const bloqueados = await manager.find(Ticket, {
                 where: { id: In(vencidos.map((t) => t.id)), estado: ESTADO_TICKET.PENDIENTE, fechaLimite: LessThan(ahora) },
@@ -222,22 +228,22 @@ export class TicketService {
     async create(usuario: Usuario, dto: CreateTicketDto) {
         try {
             await this.vencerPendientes();
-            const id = await this.transaccion(async (manager) => {
+            const id = await this.transaccionDoble(async (manager, managerTickets) => {
                 await this.bloquearCliente(manager, usuario.id);
                 const concierto = await this.bloquearConcierto(manager, dto.conciertoId);
-                await this.validarCupo(manager, usuario.id);
-                const elegidos = await this.validarAsientos(manager, concierto.id, dto.asientoIds);
+                await this.validarCupo(managerTickets, usuario.id);
+                const elegidos = await this.validarAsientos(manager, managerTickets, concierto.id, dto.asientoIds);
 
-                const ticket = await manager.save(
-                    manager.create(Ticket, {
-                        clave: await this.claveNueva(manager),
+                const ticket = await managerTickets.save(
+                    managerTickets.create(Ticket, {
+                        clave: await this.claveNueva(managerTickets),
                         usuarioId: usuario.id,
                         conciertoId: concierto.id,
                         total: this.calcularTotal(elegidos),
                         fechaLimite: this.calcularLimite(concierto),
                     }),
                 );
-                await this.guardarDetalles(manager, ticket, elegidos);
+                await this.guardarDetalles(managerTickets, ticket, elegidos);
                 return ticket.id;
             });
             const ticket = await buscarActivo(this.tickets, id, 'Ticket', false);
@@ -329,7 +335,7 @@ export class TicketService {
         try {
             await this.vencerPendientes();
             const ticket = await this.buscarDeUsuario(usuario, id);
-            await this.transaccion(async (manager) => {
+            await this.transaccionTickets(async (manager) => {
                 const cambio = await manager.update(
                     Ticket,
                     { id: ticket.id, estado: ESTADO_TICKET.PENDIENTE },

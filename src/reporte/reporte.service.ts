@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { Asiento } from '../asiento/entities/asiento.entity.js';
 import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
+import { transaccionDoble } from '../common/transaccion-doble.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
-import { ESTADO_TICKET, OCUPADO } from '../constantes.js';
+import { BD_TICKET, ESTADO_TICKET, OCUPADO } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Pago } from '../pago/entities/pago.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
@@ -26,21 +28,22 @@ interface Datos {
 export class ReporteService {
     constructor(
         private readonly dataSource: DataSource,
+        @InjectDataSource(BD_TICKET) private readonly dataSourceTickets: DataSource,
         private readonly ticketService: TicketService,
     ) {}
 
-    private lectura<T>(trabajo: (manager: EntityManager) => Promise<T>) {
-        return this.dataSource.transaction('REPEATABLE READ', trabajo);
+    private lectura<T>(trabajo: (manager: EntityManager, managerTickets: EntityManager) => Promise<T>) {
+        return transaccionDoble(this.dataSource, this.dataSourceTickets, 'REPEATABLE READ', trabajo);
     }
 
-    private async cargar(manager: EntityManager, conciertos: Concierto[]): Promise<Datos> {
+    private async cargar(manager: EntityManager, managerTickets: EntityManager, conciertos: Concierto[]): Promise<Datos> {
         if (conciertos.length === 0) return { tickets: [], pagos: [], ocupados: [], precios: [], zonas: [] };
 
         await adjuntar(conciertos, 'recintoId', manager.getRepository(Recinto), 'recinto');
         const ids = conciertos.map((c) => c.id);
-        const tickets = await manager.find(Ticket, { where: { conciertoId: In(ids) } });
-        const pagos = tickets.length ? await manager.find(Pago, { where: { ticketId: In(tickets.map((t) => t.id)) } }) : [];
-        const ocupados = await manager.find(DetalleTicket, { where: { conciertoId: In(ids), ocupado: OCUPADO } });
+        const tickets = await managerTickets.find(Ticket, { where: { conciertoId: In(ids) } });
+        const pagos = tickets.length ? await managerTickets.find(Pago, { where: { ticketId: In(tickets.map((t) => t.id)) } }) : [];
+        const ocupados = await managerTickets.find(DetalleTicket, { where: { conciertoId: In(ids), ocupado: OCUPADO } });
         const precios = await manager.find(ConciertoZona, { where: { conciertoId: In(ids) }, order: { id: 'ASC' } });
         const zonas = precios.length ? await manager.findBy(Zona, { id: In(precios.map((p) => p.zonaId)) }) : [];
         return { tickets, pagos, ocupados, precios, zonas };
@@ -105,12 +108,12 @@ export class ReporteService {
     async findAll(filtros: FiltrosReporteDto) {
         try {
             await this.ticketService.vencerPendientes();
-            return await this.lectura(async (manager) => {
+            return await this.lectura(async (manager, managerTickets) => {
                 const conciertos = await manager.find(Concierto, {
                     where: soloLoQueVino(filtros),
                     order: { fecha: 'ASC', id: 'ASC' },
                 });
-                const datos = await this.cargar(manager, conciertos);
+                const datos = await this.cargar(manager, managerTickets, conciertos);
                 return conciertos.map((concierto) => this.resumir(concierto, datos));
             });
         }
@@ -122,9 +125,9 @@ export class ReporteService {
     async findOne(id: number) {
         try {
             await this.ticketService.vencerPendientes();
-            return await this.lectura(async (manager) => {
+            return await this.lectura(async (manager, managerTickets) => {
                 const concierto = await buscarActivo(manager.getRepository(Concierto), id, 'Concierto', false);
-                const datos = await this.cargar(manager, [concierto]);
+                const datos = await this.cargar(manager, managerTickets, [concierto]);
                 return { ...this.resumir(concierto, datos), zonas: await this.desglosarZonas(manager, datos) };
             });
         }

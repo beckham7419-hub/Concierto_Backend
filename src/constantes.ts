@@ -49,6 +49,8 @@ export const FORMATO_CLAVE = new RegExp(`^[${ALFABETO_CLAVE}]{${LARGO_CLAVE}}$`)
 
 export const OCUPADO = 1;
 
+export const BD_TICKET = 'tickets';
+
 export const ID_MAX = 2147483647;
 
 export const MAX_NIVELES_BODY = 10;

@@ -6,6 +6,7 @@ import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
+import { BD_TICKET } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { TicketModule } from '../ticket/ticket.module.js';
@@ -15,7 +16,8 @@ import { CarteleraService } from './cartelera.service.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Concierto, ConciertoArtista, ConciertoZona, Recinto, Ciudad, Artista, Zona, Asiento, DetalleTicket]),
+    TypeOrmModule.forFeature([Concierto, ConciertoArtista, ConciertoZona, Recinto, Ciudad, Artista, Zona, Asiento]),
+    TypeOrmModule.forFeature([DetalleTicket], BD_TICKET),
     TicketModule,
   ],
   controllers: [CarteleraController],

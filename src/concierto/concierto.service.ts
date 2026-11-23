@@ -1,12 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, EntityManager, In, LessThan, MoreThan, Not, Repository } from 'typeorm';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
+import { transaccionDoble } from '../common/transaccion-doble.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { ConciertoZona } from '../concierto-zona/entities/concierto-zona.entity.js';
-import { ANIOS_MAX_CONCIERTO, ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_FINALIZAR_CONCIERTO, MINUTOS_REVISAR_FINALIZADOS, OCUPADO } from '../constantes.js';
+import { ANIOS_MAX_CONCIERTO, BD_TICKET, ESTADO_CONCIERTO, ESTADO_TICKET, HORAS_FINALIZAR_CONCIERTO, MINUTOS_REVISAR_FINALIZADOS, OCUPADO } from '../constantes.js';
 import { DetalleTicket } from '../detalle-ticket/entities/detalle-ticket.entity.js';
 import { Recinto } from '../recinto/entities/recinto.entity.js';
 import { Ticket } from '../ticket/entities/ticket.entity.js';
@@ -27,6 +28,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Artista) private readonly artistas: Repository<Artista>,
     @InjectRepository(Zona) private readonly zonas: Repository<Zona>,
     private readonly dataSource: DataSource,
+    @InjectDataSource(BD_TICKET) private readonly dataSourceTickets: DataSource,
   ) {}
 
   private temporizador?: NodeJS.Timeout;
@@ -97,6 +99,10 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
     return this.dataSource.transaction('READ COMMITTED', trabajo);
   }
 
+  private transaccionDoble<T>(trabajo: (manager: EntityManager, managerTickets: EntityManager) => Promise<T>) {
+    return transaccionDoble(this.dataSource, this.dataSourceTickets, 'READ COMMITTED', trabajo);
+  }
+
   private async bloquearRecinto(manager: EntityManager, id: number) {
     const recinto = await manager.findOne(Recinto, { where: { id }, lock: { mode: 'pessimistic_write' } });
     if (!recinto || !recinto.activo) throw new NotFoundException('Recinto no encontrado');
@@ -108,8 +114,8 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
     return concierto;
   }
 
-  private tieneTicketsVivos(manager: EntityManager, conciertoId: number) {
-    return manager.existsBy(Ticket, [
+  private tieneTicketsVivos(conciertoId: number) {
+    return this.dataSourceTickets.manager.existsBy(Ticket, [
       { conciertoId, estado: ESTADO_TICKET.PAGADO },
       { conciertoId, estado: ESTADO_TICKET.USADO },
       { conciertoId, estado: ESTADO_TICKET.PENDIENTE, fechaLimite: MoreThan(new Date()) },
@@ -197,7 +203,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
           this.validarLejana(fecha);
         }
         if (cambiaFecha || cambiaRecinto) {
-          if (await this.tieneTicketsVivos(manager, id)) {
+          if (await this.tieneTicketsVivos(id)) {
             throw new ConflictException('Con tickets pendientes o pagados no se cambia el recinto ni la fecha');
           }
           await this.bloquearRecinto(manager, recintoId);
@@ -225,20 +231,20 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
   async cancelar(id: number) {
     try {
       await this.finalizarPasados();
-      await this.transaccion(async (manager) => {
+      await this.transaccionDoble(async (manager, managerTickets) => {
         const actual = await this.bloquearConcierto(manager, id);
         if (actual.estado === ESTADO_CONCIERTO.FINALIZADO) throw new ConflictException('El concierto ya finalizo');
-        const hayPagados = await manager.existsBy(Ticket, [
+        const hayPagados = await managerTickets.existsBy(Ticket, [
           { conciertoId: id, estado: ESTADO_TICKET.PAGADO },
           { conciertoId: id, estado: ESTADO_TICKET.USADO },
         ]);
         if (hayPagados) throw new ConflictException('El concierto tiene tickets pagados, no se puede cancelar');
-        await manager.update(
+        await managerTickets.update(
           Ticket,
           { conciertoId: id, estado: ESTADO_TICKET.PENDIENTE },
           { estado: ESTADO_TICKET.CANCELADO },
         );
-        await manager.update(DetalleTicket, { conciertoId: id, ocupado: OCUPADO }, { ocupado: null });
+        await managerTickets.update(DetalleTicket, { conciertoId: id, ocupado: OCUPADO }, { ocupado: null });
         await manager.update(Concierto, { id }, { estado: ESTADO_CONCIERTO.CANCELADO });
       });
       return { ok: true };
@@ -278,7 +284,7 @@ export class ConciertoService implements OnModuleInit, OnModuleDestroy {
 
         const anteriores = await manager.findBy(ConciertoZona, { conciertoId: id });
         const quitaZona = anteriores.some((anterior) => !zonaIds.includes(anterior.zonaId));
-        if (quitaZona && (await this.tieneTicketsVivos(manager, id))) {
+        if (quitaZona && (await this.tieneTicketsVivos(id))) {
           throw new ConflictException('Con tickets pendientes o pagados no se quita una zona');
         }
 
