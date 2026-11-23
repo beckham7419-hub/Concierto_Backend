@@ -29,7 +29,7 @@ export function revisarEnv(env: NodeJS.ProcessEnv = process.env): ResultadoEnv {
     if (valor('DB_USERNAME') === '') errores.push('Falta DB_USERNAME (el usuario de MySQL)');
     if (valor('DB_DATABASE') === '') errores.push('Falta DB_DATABASE (el nombre de la base de datos)');
     if (valor('DB_TICKET_DATABASE') === '') {
-        errores.push('Falta DB_TICKET_DATABASE (el nombre de la base de datos aparte donde se guardan los tickets y los pagos, por ejemplo concierto_tickets)');
+        errores.push('Falta DB_TICKET_DATABASE (el nombre de la base de datos aparte donde se guardan los tickets y los pagos, por ejemplo concierto_ticket)');
     } else if (valor('DB_TICKET_DATABASE') === valor('DB_DATABASE')) {
         avisos.push('DB_TICKET_DATABASE es igual a DB_DATABASE: los tickets y los pagos no quedan en una base de datos aparte');
     }
@@ -116,7 +116,7 @@ export function mensajeDeArranque(error: unknown, env: NodeJS.ProcessEnv = proce
     }
     if (es('ER_BAD_DB_ERROR')) {
         const base = baseDelError(error, env);
-        const variable = base === env.DB_TICKETS_DATABASE && base !== env.DB_DATABASE ? 'DB_TICKETS_DATABASE' : 'DB_DATABASE';
+        const variable = base === env.DB_TICKET_DATABASE && base !== env.DB_DATABASE ? 'DB_TICKET_DATABASE' : 'DB_DATABASE';
         return `La base de datos "${base}" no existe en ${mysql}: crea la con CREATE DATABASE ${base}; o corrige ${variable} en el .env`;
     }
     if (es('ER_DBACCESS_DENIED_ERROR')) {
