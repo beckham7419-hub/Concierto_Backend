@@ -25,7 +25,7 @@ export class SesionGuard implements CanActivate {
         const token = cabecera.startsWith('Bearer ') ? cabecera.slice(7) : null;
         if (!token) throw new UnauthorizedException('Falta el token');
 
-        let datos: any;
+        let datos: { sub: number; sid: string };
         try {
             datos = await this.jwt.verifyAsync(token);
         }

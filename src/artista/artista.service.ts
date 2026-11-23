@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThan, Not, Repository } from 'typeorm';
-import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
+import { adjuntar, bloquearActivo, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { ConciertoArtista } from '../concierto-artista/entities/concierto-artista.entity.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
@@ -40,6 +40,7 @@ export class ArtistaService {
       await buscarActivo(this.generos, dto.generoId, 'Genero');
       await this.validarNombre(dto.nombre);
       const id = await this.transaccion(async (manager) => {
+        await bloquearActivo(manager, Genero, dto.generoId, 'Genero');
         const artista = await manager.save(manager.create(Artista, dto));
         if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
         return artista.id;
@@ -78,6 +79,7 @@ export class ArtistaService {
       if (dto.nombre) await this.validarNombre(dto.nombre, id);
       const cambios = soloLoQueVino(dto);
       await this.transaccion(async (manager) => {
+        if (dto.generoId !== undefined) await bloquearActivo(manager, Genero, dto.generoId, 'Genero');
         if (Object.keys(cambios).length > 0) await manager.update(Artista, { id }, cambios);
         if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
       });
@@ -112,8 +114,12 @@ export class ArtistaService {
 
   async activar(id: number) {
     try {
-      await buscarActivo(this.artistas, id, 'Artista', false);
-      await this.artistas.update({ id }, { activo: true });
+      const artista = await buscarActivo(this.artistas, id, 'Artista', false);
+      await this.transaccion(async (manager) => {
+        const genero = await manager.findOne(Genero, { where: { id: artista.generoId }, lock: { mode: 'pessimistic_read' } });
+        if (!genero || !genero.activo) throw new ConflictException('El genero del artista esta inactivo');
+        await manager.update(Artista, { id }, { activo: true });
+      });
       return { ok: true };
     }
     catch (error) {

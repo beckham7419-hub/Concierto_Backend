@@ -120,7 +120,10 @@ export class ZonaService {
 
   async activar(id: number) {
     try {
-      await buscarActivo(this.zonas, id, 'Zona', false);
+      const zona = await buscarActivo(this.zonas, id, 'Zona', false);
+      if (!(await this.recintos.existsBy({ id: zona.recintoId, activo: true }))) {
+        throw new ConflictException('El recinto de la zona esta inactivo');
+      }
       await this.zonas.update({ id }, { activo: true });
       return { ok: true };
     }

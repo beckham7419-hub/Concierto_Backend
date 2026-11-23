@@ -119,8 +119,8 @@ export class TicketService {
                 })),
             );
         }
-        catch (error: any) {
-            if (error?.code === 'ER_DUP_ENTRY') throw new ConflictException('Algun asiento ya esta ocupado');
+        catch (error) {
+            if ((error as { code?: string })?.code === 'ER_DUP_ENTRY') throw new ConflictException('Algun asiento ya esta ocupado');
             throw error;
         }
     }

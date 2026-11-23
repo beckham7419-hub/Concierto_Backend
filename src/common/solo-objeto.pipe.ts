@@ -3,7 +3,7 @@ import { MAX_NIVELES_BODY } from '../constantes.js';
 
 @Injectable()
 export class SoloObjetoPipe implements PipeTransform {
-    transform(valor: any, metadata: ArgumentMetadata) {
+    transform(valor: unknown, metadata: ArgumentMetadata) {
         if (metadata.type !== 'body') return valor;
         if (Array.isArray(valor)) throw new BadRequestException('El body debe ser un objeto');
         if (this.contarNiveles(valor) > MAX_NIVELES_BODY) throw new BadRequestException('El body tiene demasiados niveles');

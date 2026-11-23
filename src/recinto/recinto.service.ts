@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, MoreThan, Not, Repository } from 'typeorm';
 import { Ciudad } from '../ciudad/entities/ciudad.entity.js';
-import { adjuntar, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
+import { adjuntar, bloquearActivo, bloquearImagen, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { Concierto } from '../concierto/entities/concierto.entity.js';
 import { ESTADO_CONCIERTO } from '../constantes.js';
@@ -41,6 +41,7 @@ export class RecintoService {
       await buscarActivo(this.ciudades, dto.ciudadId, 'Ciudad');
       await this.validarNombre(dto.nombre, dto.ciudadId);
       const id = await this.transaccion(async (manager) => {
+        await bloquearActivo(manager, Ciudad, dto.ciudadId, 'Ciudad');
         const recinto = await manager.save(manager.create(Recinto, dto));
         if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
         return recinto.id;
@@ -90,6 +91,7 @@ export class RecintoService {
       await this.validarNombre(dto.nombre ?? actual.nombre, dto.ciudadId ?? actual.ciudadId, id);
       const cambios = soloLoQueVino(dto);
       await this.transaccion(async (manager) => {
+        if (dto.ciudadId !== undefined) await bloquearActivo(manager, Ciudad, dto.ciudadId, 'Ciudad');
         if (Object.keys(cambios).length > 0) await manager.update(Recinto, { id }, cambios);
         if (dto.imagenId != null) await bloquearImagen(manager, dto.imagenId);
       });
@@ -122,8 +124,12 @@ export class RecintoService {
 
   async activar(id: number) {
     try {
-      await buscarActivo(this.recintos, id, 'Recinto', false);
-      await this.recintos.update({ id }, { activo: true });
+      const recinto = await buscarActivo(this.recintos, id, 'Recinto', false);
+      await this.transaccion(async (manager) => {
+        const ciudad = await manager.findOne(Ciudad, { where: { id: recinto.ciudadId }, lock: { mode: 'pessimistic_read' } });
+        if (!ciudad || !ciudad.activo) throw new ConflictException('La ciudad del recinto esta inactiva');
+        await manager.update(Recinto, { id }, { activo: true });
+      });
       return { ok: true };
     }
     catch (error) {

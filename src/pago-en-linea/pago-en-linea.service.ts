@@ -42,8 +42,8 @@ export class PagoEnLineaService {
                 metodo = await this.metodosPago.save(this.metodosPago.create({ nombre: METODO_PAGO_TARJETA }));
                 this.logger.log(`Metodo de pago creado: ${METODO_PAGO_TARJETA}`);
             }
-            catch (error: any) {
-                if (error?.code !== 'ER_DUP_ENTRY') throw error;
+            catch (error) {
+                if ((error as { code?: string })?.code !== 'ER_DUP_ENTRY') throw error;
                 metodo = await this.metodosPago.findOneByOrFail({ nombre: METODO_PAGO_TARJETA });
             }
         }

@@ -1,6 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
-import { PASSWORD_MAX, PASSWORD_MIN } from '../../constantes.js';
+import { FORMATO_NOMBRE_PERSONA, MENSAJE_NOMBRE_PERSONA, PASSWORD_MAX, PASSWORD_MIN } from '../../constantes.js';
 import { limpiar, MaxBytes, Opcional } from '../../common/dto-ayudas.js';
 
 export class ActualizarPerfilDto {
@@ -9,6 +9,7 @@ export class ActualizarPerfilDto {
     @IsString()
     @IsNotEmpty()
     @MaxLength(100)
+    @Matches(FORMATO_NOMBRE_PERSONA, { message: MENSAJE_NOMBRE_PERSONA })
     nombre?: string;
 
     @Opcional()
@@ -16,6 +17,7 @@ export class ActualizarPerfilDto {
     @IsString()
     @IsNotEmpty()
     @MaxLength(100)
+    @Matches(FORMATO_NOMBRE_PERSONA, { message: MENSAJE_NOMBRE_PERSONA })
     apellido?: string;
 
     @IsOptional()

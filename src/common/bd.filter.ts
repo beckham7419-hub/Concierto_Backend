@@ -1,9 +1,11 @@
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 
+type ErrorBd = QueryFailedError & { code?: string; sqlMessage?: string };
+
 @Catch(QueryFailedError)
-export class BdFilter implements ExceptionFilter {
-    catch(error: any, host: ArgumentsHost) {
+export class BdFilter implements ExceptionFilter<ErrorBd> {
+    catch(error: ErrorBd, host: ArgumentsHost) {
         const res = host.switchToHttp().getResponse();
 
         if (error.code === 'ER_DUP_ENTRY') {

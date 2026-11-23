@@ -1,6 +1,6 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, Not, Repository } from 'typeorm';
 import { Artista } from '../artista/entities/artista.entity.js';
 import { buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
@@ -12,8 +12,12 @@ import { Genero } from './entities/genero.entity.js';
 export class GeneroService {
   constructor(
     @InjectRepository(Genero) private readonly generos: Repository<Genero>,
-    @InjectRepository(Artista) private readonly artistas: Repository<Artista>,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private transaccion<T>(trabajo: (manager: EntityManager) => Promise<T>) {
+    return this.dataSource.transaction('READ COMMITTED', trabajo);
+  }
 
   private async validarNombre(nombre: string, idPropio?: number) {
     const donde = idPropio ? { nombre, id: Not(idPropio) } : { nombre };
@@ -66,10 +70,14 @@ export class GeneroService {
   async desactivar(id: number) {
     try {
       await buscarActivo(this.generos, id, 'Genero', false);
-      if (await this.artistas.existsBy({ generoId: id, activo: true })) {
-        throw new ConflictException('El genero tiene artistas activos');
-      }
-      await this.generos.update({ id }, { activo: false });
+      await this.transaccion(async (manager) => {
+        const genero = await manager.findOne(Genero, { where: { id }, lock: { mode: 'pessimistic_write' } });
+        if (!genero) throw new NotFoundException('Genero no encontrado');
+        if (await manager.existsBy(Artista, { generoId: id, activo: true })) {
+          throw new ConflictException('El genero tiene artistas activos');
+        }
+        await manager.update(Genero, { id }, { activo: false });
+      });
       return { ok: true };
     }
     catch (error) {

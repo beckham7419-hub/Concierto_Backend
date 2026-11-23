@@ -1,6 +1,6 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, Not, Repository } from 'typeorm';
 import { adjuntar, buscarActivo, soloLoQueVino } from '../common/ayudas.js';
 import { manejarError } from '../common/manejar-error.js';
 import { Estado } from '../estado/entities/estado.entity.js';
@@ -14,8 +14,12 @@ export class CiudadService {
   constructor(
     @InjectRepository(Ciudad) private readonly ciudades: Repository<Ciudad>,
     @InjectRepository(Estado) private readonly estados: Repository<Estado>,
-    @InjectRepository(Recinto) private readonly recintos: Repository<Recinto>,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private transaccion<T>(trabajo: (manager: EntityManager) => Promise<T>) {
+    return this.dataSource.transaction('READ COMMITTED', trabajo);
+  }
 
   private async validarNombre(nombre: string, estadoId: number, idPropio?: number) {
     const donde = idPropio ? { nombre, estadoId, id: Not(idPropio) } : { nombre, estadoId };
@@ -78,10 +82,14 @@ export class CiudadService {
   async desactivar(id: number) {
     try {
       await buscarActivo(this.ciudades, id, 'Ciudad', false);
-      if (await this.recintos.existsBy({ ciudadId: id, activo: true })) {
-        throw new ConflictException('La ciudad tiene recintos activos');
-      }
-      await this.ciudades.update({ id }, { activo: false });
+      await this.transaccion(async (manager) => {
+        const ciudad = await manager.findOne(Ciudad, { where: { id }, lock: { mode: 'pessimistic_write' } });
+        if (!ciudad) throw new NotFoundException('Ciudad no encontrado');
+        if (await manager.existsBy(Recinto, { ciudadId: id, activo: true })) {
+          throw new ConflictException('La ciudad tiene recintos activos');
+        }
+        await manager.update(Ciudad, { id }, { activo: false });
+      });
       return { ok: true };
     }
     catch (error) {

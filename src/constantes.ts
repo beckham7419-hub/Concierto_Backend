@@ -6,6 +6,9 @@ export const ROL = {
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 72;
 
+export const FORMATO_NOMBRE_PERSONA = /^(?:\p{L}[\p{L}\p{M} .'\u2019-]*)?$/u;
+export const MENSAJE_NOMBRE_PERSONA = '$property solo puede llevar letras, espacios, puntos, apostrofes y guiones';
+
 export const MAX_FILAS = 26;
 export const MAX_ASIENTOS_FILA = 50;
 

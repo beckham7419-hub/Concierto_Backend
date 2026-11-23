@@ -53,8 +53,8 @@ export class PagoService {
         try {
             return await manager.save(manager.create(Pago, datos));
         }
-        catch (error: any) {
-            if (error?.code === 'ER_DUP_ENTRY') throw new ConflictException('El ticket ya esta pagado');
+        catch (error) {
+            if ((error as { code?: string })?.code === 'ER_DUP_ENTRY') throw new ConflictException('El ticket ya esta pagado');
             throw error;
         }
     }

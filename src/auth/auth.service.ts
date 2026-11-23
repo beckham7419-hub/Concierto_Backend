@@ -69,6 +69,9 @@ export class AuthService {
                 if (!(await compare(dto.contrasenaActual ?? '', usuario.contrasena))) {
                     throw new BadRequestException('La contraseña actual no es correcta');
                 }
+                if (dto.contrasenaNueva === dto.contrasenaActual) {
+                    throw new BadRequestException('La contraseña nueva debe ser diferente a la actual');
+                }
                 cambios.contrasena = await hash(dto.contrasenaNueva, 10);
             }
             if (Object.keys(cambios).length > 0) await this.usuarios.update(usuario.id, cambios);
